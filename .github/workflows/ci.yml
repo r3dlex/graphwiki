@@ -39,6 +39,9 @@ jobs:
       - name: Install archgate
         run: npm install -g archgate
 
+      - name: Initialize archgate project
+        run: archgate init
+
       - name: Verify archgate CLI
         run: |
           archgate --version || { echo "archgate version check failed"; exit 1; }
