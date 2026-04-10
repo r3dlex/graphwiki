@@ -118,6 +118,36 @@ When the PreToolUse hook provides insufficient context, follow this manual proto
 
 ## Skill System Architecture
 
+GraphWiki uses a canonical skill pipeline where [SKILL.md](SKILL.md) is the single source of truth parsed by `skill-generator.ts` to generate platform-specific skill files:
+
+```
+SKILL.md  →  skill-generator.ts  →  SKILL-claude.md
+                                    SKILL-codex.md
+                                    SKILL-copilot.md
+                                    SKILL-gemini.md
+                                    SKILL-cursor.md
+                                    SKILL-openclaw.md
+```
+
+- **SKILL.md** is the canonical source with YAML frontmatter and markdown sections
+- **skill-generator.ts** parses SKILL.md via `parseFrontmatter` and `parseSections`, then generates platform-specific output
+- **SKILL-claude.md** — full markdown (prompt.md compatible, with YAML frontmatter)
+- **SKILL-codex.md** — abbreviated markdown (Context Loading Protocol, Commands, Hard Constraints)
+- **SKILL-copilot.md** — restructured for GitHub Copilot (How to Use, Commands, Rules)
+- **SKILL-gemini.md** — plain text sections (no markdown formatting)
+- **SKILL-cursor.md** — JSON format (contextLoadingProtocol, commands, hardConstraints)
+- **SKILL-openclaw.md** — YAML format (context_loading_protocol, commands, hard_constraints)
+
+The skill installer (`graphwiki skill install`) registers PreToolUse hooks via oh-my-claude's hooks.json, enabling automatic context enrichment before each tool call.
+
+SKILL.md is the canonical source. All SKILL-*.md files are generated — do not edit them directly.
+
+For full skill documentation, see [SKILL.md](SKILL.md).
+
+---
+
+## Agent Role Matrix
+
 GraphWiki uses a multi-agent skill system with the following agents:
 
 | Agent | Role | Tools | Protocol |
@@ -127,10 +157,6 @@ GraphWiki uses a multi-agent skill system with the following agents:
 | oma-planner | planning | read, bash, write | GraphWiki context for planning |
 | oma-executor | implementation | bash, read, edit, glob, write | GraphWiki command execution |
 | oma-verifier | verification | bash, read | graphwiki lint, coverage validation |
-
-The skill installer (`graphwiki skill install`) registers PreToolUse hooks via oh-my-claude's hooks.json, enabling automatic context enrichment before each tool call.
-
-For detailed skill configuration and generator, see [SKILL.md](SKILL.md).
 
 ---
 

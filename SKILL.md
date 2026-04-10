@@ -74,7 +74,7 @@ When the PreToolUse hook provides insufficient context, follow this manual proto
 | `graphwiki skill generate [--check]` | Generate platform-specific skill files |
 | `graphwiki skill uninstall [--platform <name>]` | Remove skill installation |
 
-## Agents
+## Agent Role Matrix
 
 | Agent | Role | Tools | Protocol |
 |-------|------|-------|----------|
@@ -96,7 +96,7 @@ When the PreToolUse hook provides insufficient context, follow this manual proto
 Wiki pages have YAML frontmatter:
 - `title`, `type`, `graph_nodes`, `graph_community`, `sources`, `related`, `confidence`, `content_hash`
 
-## Platform-Specific Installation
+## Platform Installation
 
 - **Claude Code:** `graphwiki skill install --platform claude`
 - **Codex:** `graphwiki skill install --platform codex`
@@ -106,7 +106,7 @@ Wiki pages have YAML frontmatter:
 - **GitHub Copilot:** copy SKILL-copilot.md to `.github/copilot/`
 - **Auggie:** Research pending -- **excluded from v2**. Auggie's hook API is undocumented and requires separate research before integration.
 
-## Hook Events (for skill installer)
+## PreToolUse Hook Integration (for skill installer)
 
 The skill installer registers these hooks via oh-my-claude's hooks.json:
 
