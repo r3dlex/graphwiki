@@ -102,9 +102,7 @@ jobs:
 
       - name: Verify hook scripts exist and are valid ESM
         run: |
-          cd scripts && node --input-type=module < graphwiki-pretool.mjs && echo "pretool.mjs: valid ESM"
-          cd scripts && node --input-type=module < graphwiki-session-start.mjs && echo "session-start.mjs: valid ESM"
-          cd scripts && node --input-type=module < graphwiki-posttool.mjs && echo "posttool.mjs: valid ESM"
+          cd scripts && node --input-type=module < graphwiki-pretool.mjs && echo "pretool.mjs: valid ESM" && node --input-type=module < graphwiki-session-start.mjs && echo "session-start.mjs: valid ESM" && node --input-type=module < graphwiki-posttool.mjs && echo "posttool.mjs: valid ESM"
 
       - name: Simulate PreToolUse hook with snake_case event (Read tool)
         run: |
