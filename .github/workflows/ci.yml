@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  archgate:
+    name: archgate check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify rule scopes
+        run: |
+          set -e
+          grep "scope: 'src/graph/'" arch/rules/graph.rules.ts
+          grep "scope: 'wiki/'" arch/rules/wiki.rules.ts
+          grep "scope: 'src/serve/'" arch/rules/serve.rules.ts
+          grep "scope: 'src/dedup/'" arch/rules/dedup.rules.ts
+
+      - name: Install archgate
+        run: npm install -g archgate
+
+      - name: Initialize archgate project
+        run: archgate init
+
+      - name: Verify archgate CLI
+        run: |
+          archgate --version || { echo "archgate version check failed"; exit 1; }
+
+      - name: Run archgate check
+        run: archgate check --ci
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Unit tests
+        run: pnpm test
