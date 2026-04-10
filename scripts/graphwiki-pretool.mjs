@@ -14,7 +14,7 @@
  */
 
 import { spawn } from 'child_process';
-import { readStdin } from './lib/stdin.mjs';
+import { readStdin } from '../lib/stdin.mjs';
 
 const GRAPHWIKI_CLI = process.env.GRAPHWIKI_CLI ?? 'graphwiki';
 const PROJECT_ROOT = process.env.GRAPHWIKI_PROJECT_ROOT ?? '.';
