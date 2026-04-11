@@ -126,8 +126,8 @@ export class Ratchet {
     let queriesDegraded = 0;
 
     for (let i = 0; i < beforeScores.length; i++) {
-      const before = this.computeComposite(beforeScores[i]);
-      const after = this.computeComposite(afterScores[i]);
+      const before = this.computeComposite(beforeScores[i]!);
+      const after = this.computeComposite(afterScores[i]!);
       const delta = after - before;
 
       deltas.push(delta);
@@ -160,7 +160,7 @@ export class Ratchet {
   /**
    * Set custom threshold
    */
-  setThreshold(threshold: number): void {
+  setThreshold(_threshold: number): void {
     // Note: This would need to be a setter pattern for proper encapsulation
     // For now, threshold is read-only
   }

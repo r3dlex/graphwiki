@@ -36,7 +36,7 @@ describe('CommunitySummarizer', () => {
         { id: 'e2', source: 'n2', target: 'n3', weight: 0.5 },
       ];
 
-      mockProvider.complete.mockResolvedValue({
+      (mockProvider.complete as any).mockResolvedValue({
         content:
           'Test Community is a cohesive group focused on foundational concepts and their practical applications. Node A serves as a central concept that connects to Node B, an entity implementation, which in turn references Node C as a source.',
         usage: { input_tokens: 150, output_tokens: 80, total_tokens: 230 },
@@ -63,14 +63,14 @@ describe('CommunitySummarizer', () => {
       ];
       const edges: GraphEdge[] = [];
 
-      mockProvider.complete.mockResolvedValue({
+      (mockProvider.complete as any).mockResolvedValue({
         content: 'A single-source node with two provenance documents.',
         usage: { input_tokens: 50, output_tokens: 20, total_tokens: 70 },
       });
 
       await summarizer.summarize(community, nodes, edges);
 
-      const callArgs = mockProvider.complete.mock.calls[0];
+      const callArgs = (mockProvider.complete as any).mock.calls[0];
       const userPrompt = callArgs[0][1].content;
       expect(userPrompt).toContain('paper.pdf');
       expect(userPrompt).toContain('article.md');
@@ -82,7 +82,7 @@ describe('CommunitySummarizer', () => {
       const nodes: GraphNode[] = [];
       const edges: GraphEdge[] = [];
 
-      mockProvider.complete.mockResolvedValue({
+      (mockProvider.complete as any).mockResolvedValue({
         content: 'An empty community with no nodes or edges.',
         usage: { input_tokens: 20, output_tokens: 10, total_tokens: 30 },
       });

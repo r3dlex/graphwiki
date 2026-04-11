@@ -1,7 +1,7 @@
 // Leiden community detection for GraphWiki v2
 // Implements Louvain/Leiden modularity optimization
 
-import type { GraphDocument, GraphNode, GraphEdge } from "../types.js";
+import type { GraphDocument } from "../types.js";
 
 export function cluster(
   graph: GraphDocument,
@@ -22,9 +22,14 @@ export function cluster(
   for (const node of nodes) {
     neighbors.set(node.id, []);
   }
+  const isDirected = graph.metadata?.directed === true;
   for (const edge of edges) {
+    // Directed mode: only add outbound direction (source -> target)
+    // Undirected mode: add both directions (existing behavior)
     neighbors.get(edge.source)?.push({ neighbor: edge.target, weight: edge.weight });
-    neighbors.get(edge.target)?.push({ neighbor: edge.source, weight: edge.weight });
+    if (!isDirected) {
+      neighbors.get(edge.target)?.push({ neighbor: edge.source, weight: edge.weight });
+    }
   }
 
   // Total edge weight

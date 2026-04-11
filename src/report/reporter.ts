@@ -1,6 +1,6 @@
 import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import type { GraphDocument, GraphNode, GraphEdge } from '../types.js';
+import type { GraphDocument, GraphNode } from '../types.js';
 import type { ReporterConfig, Surprise } from './types.js';
 
 const DEFAULT_CONFIG: Required<ReporterConfig> = {
@@ -190,13 +190,13 @@ export class GraphReporter {
     const godNodes = this.detectGodNodes(graph, 5);
     if (godNodes.length > 0) {
       const topNode = godNodes[0];
-      const topDegree = degrees.get(topNode.id) ?? 0;
+      const topDegree = degrees.get(topNode!.id) ?? 0;
       const secondDegree = degrees.get(godNodes[1]?.id ?? '') ?? 0;
       if (topDegree > secondDegree * 5 && topDegree > 10) {
         surprises.push({
           type: 'god_node_anomaly',
-          description: `Node "${topNode.label}" is a dominant hub with ${topDegree} connections, far exceeding other nodes. This may indicate a star-topology or point of failure.`,
-          affected_nodes: [topNode.id],
+          description: `Node "${topNode!.label}" is a dominant hub with ${topDegree} connections, far exceeding other nodes. This may indicate a star-topology or point of failure.`,
+          affected_nodes: [topNode!.id],
           severity: 'medium',
         });
       }

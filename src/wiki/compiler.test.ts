@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WikiCompiler } from './compiler.js';
-import type { LLMProvider, CompletionResult } from '../types.js';
-import type { CommunityMeta, WikiPage } from './types.js';
+import type { LLMProvider } from '../types.js';
+import type { CommunityMeta } from './types.js';
 
 const mockProvider: LLMProvider = {
   complete: vi.fn(),
@@ -36,7 +36,7 @@ describe('WikiCompiler', () => {
         { id: 'e2', source: 'n2', target: 'n3', weight: 0.5 },
       ];
 
-      mockProvider.complete.mockResolvedValue({
+      (mockProvider.complete as any).mockResolvedValue({
         content: `Overview of Test Community with important topics.
 
 1. Introduction
@@ -65,7 +65,7 @@ describe('WikiCompiler', () => {
       ];
       const edges: import('../types.js').GraphEdge[] = [];
 
-      mockProvider.complete.mockResolvedValue({
+      (mockProvider.complete as any).mockResolvedValue({
         content: 'This section covers the core concepts in detail.',
         usage: { input_tokens: 50, output_tokens: 30, total_tokens: 80 },
       });
@@ -81,7 +81,7 @@ describe('WikiCompiler', () => {
     it('should verify source content', async () => {
       const compiler = new WikiCompiler(mockProvider);
 
-      mockProvider.complete.mockResolvedValue({
+      (mockProvider.complete as any).mockResolvedValue({
         content: 'The content has been verified and appears accurate.',
         usage: { input_tokens: 200, output_tokens: 100, total_tokens: 300 },
       });
@@ -95,7 +95,7 @@ describe('WikiCompiler', () => {
     it('should mark source as not verified when content mentions incorrect', async () => {
       const compiler = new WikiCompiler(mockProvider);
 
-      mockProvider.complete.mockResolvedValue({
+      (mockProvider.complete as any).mockResolvedValue({
         content: 'This content is incorrect and needs revision.',
         usage: { input_tokens: 200, output_tokens: 100, total_tokens: 300 },
       });
@@ -122,7 +122,7 @@ describe('WikiCompiler', () => {
         { id: 'e1', source: 'n1', target: 'n2', weight: 1 },
       ];
 
-      mockProvider.complete
+      (mockProvider.complete as any)
         .mockResolvedValueOnce({
           content: '1. Overview\n2. Details\n3. Summary',
           usage: { input_tokens: 50, output_tokens: 20, total_tokens: 70 },
@@ -170,7 +170,7 @@ describe('WikiCompiler', () => {
         edges: [],
       };
 
-      mockProvider.complete
+      (mockProvider.complete as any)
         .mockResolvedValueOnce({
           content: '1. Overview\n2. Details',
           usage: { input_tokens: 50, output_tokens: 20, total_tokens: 70 },
@@ -208,7 +208,7 @@ describe('WikiCompiler', () => {
 
       expect(pages.length).toBe(3);
       // Large community (most nodes) should be first
-      expect(pages[0].frontmatter.label).toBe('Large Community');
+      expect(pages[0]?.frontmatter.label).toBe('Large Community');
     });
   });
 });

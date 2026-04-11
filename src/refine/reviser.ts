@@ -97,13 +97,13 @@ REVISED PROMPT:`;
     // Look for markdown code blocks
     const codeBlockMatch = content.match(/```[\w]*\n?([\s\S]*?)```/);
     if (codeBlockMatch) {
-      return codeBlockMatch[1].trim();
+      return codeBlockMatch[1]?.trim() ?? originalPrompt;
     }
 
     // Look for "REVISED PROMPT:" marker
     const markerMatch = content.match(/REVISED PROMPT:\s*([\s\S]*?)(?:\n\n|$)/i);
     if (markerMatch) {
-      return markerMatch[1].trim();
+      return markerMatch[1]?.trim() ?? originalPrompt;
     }
 
     // Fallback: use content that seems most like a prompt
@@ -213,7 +213,7 @@ REVISED PROMPT:`;
   private nextVersion(): string {
     const match = this.currentVersion.match(/v(\d+)/);
     if (match) {
-      const num = parseInt(match[1], 10) + 1;
+      const num = parseInt(match[1] ?? '0', 10) + 1;
       return `v${num}`;
     }
     return 'v2';

@@ -22,6 +22,7 @@ const DEFAULT_CONFIG: Required<CompilationConfig> = {
   stage3_budget_in: 3000,
   stage3_budget_out: 1000,
   parallel_limit: 3,
+  mode: 'standard',
 };
 
 export class WikiCompiler {
@@ -44,7 +45,18 @@ export class WikiCompiler {
 
     for (const header of stage1.section_headers) {
       const stage2 = await this.compileStage2(header, nodes, edges);
-      sections.push(`## ${header}\n\n${stage2.section_content}`);
+      const sectionContent: string[] = [stage2.section_content];
+
+      // In deep mode, run stage3 for every node in the community
+      if (this.config.mode === 'deep') {
+        const communityNodes = nodes.filter((n) => n.community === community.id);
+        for (const node of communityNodes) {
+          const stage3 = await this.compileStage3(node.id, node.label);
+          sectionContent.push(`\n### ${node.label}\n\n${stage3.deep_content}`);
+        }
+      }
+
+      sections.push(`## ${header}\n\n${sectionContent.join('\n')}`);
     }
 
     const content = `# ${pageName}\n\n${stage1.outline}\n\n${sections.join('\n\n')}`;
@@ -125,8 +137,8 @@ Generate a structured outline with 3-6 section headers and a brief overview para
 
   async compileStage2(
     sectionHeader: string,
-    nodes: GraphNode[],
-    edges: GraphEdge[],
+    _nodes: GraphNode[],
+    _edges: GraphEdge[],
   ): Promise<Stage2Result> {
     const systemPrompt =
       'You are a technical writer expanding wiki sections. Write comprehensive content for the requested section.';

@@ -1,5 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createStdioTransport, sendResponse, sendNotification, parseMessage, createErrorResponse, JSONRPC_ERROR_CODES } from './mcp-stdio.js';
+import {
+  createStdioTransport,
+  sendResponse,
+  sendNotification,
+  parseMessage,
+  createErrorResponse,
+  JSONRPC_ERROR_CODES,
+  createMcpServer,
+} from './mcp-stdio.js';
+import type { MCPRequest, MCPResponse } from '../types.js';
 
 // Mock process.stdin and process.stdout
 const mockStdin = {
@@ -66,6 +75,16 @@ describe('mcp-stdio', () => {
       transport.close();
 
       expect(mockStdin.pause).toHaveBeenCalled();
+    });
+
+    it('should not send when isRunning is false', () => {
+      const transport = createStdioTransport();
+      transport.close();
+
+      vi.clearAllMocks();
+      transport.send({ jsonrpc: '2.0', id: 1, result: {} });
+
+      expect(mockStdout.write).not.toHaveBeenCalled();
     });
   });
 
@@ -134,6 +153,35 @@ describe('mcp-stdio', () => {
 
       expect(result).toBeNull();
     });
+
+    it('should return null for malformed JSON-RPC', () => {
+      const input = '{"notjsonrpc":"2.0"}';
+      const result = parseMessage(input);
+
+      expect(result).toBeDefined();
+    });
+
+    it('should parse message with null id', () => {
+      const input = '{"jsonrpc":"2.0","id":null,"method":"test"}';
+      const result = parseMessage(input);
+
+      expect(result).toEqual({
+        jsonrpc: '2.0',
+        id: null,
+        method: 'test',
+      });
+    });
+
+    it('should parse message with string id', () => {
+      const input = '{"jsonrpc":"2.0","id":"abc123","method":"test"}';
+      const result = parseMessage(input);
+
+      expect(result).toEqual({
+        jsonrpc: '2.0',
+        id: 'abc123',
+        method: 'test',
+      });
+    });
   });
 
   describe('createErrorResponse', () => {
@@ -189,6 +237,16 @@ describe('mcp-stdio', () => {
         },
       });
     });
+
+    it('should handle undefined id', () => {
+      const response = createErrorResponse(
+        undefined,
+        JSONRPC_ERROR_CODES.INVALID_REQUEST,
+        'Invalid request'
+      );
+
+      expect(response.id).toBeUndefined();
+    });
   });
 
   describe('JSONRPC_ERROR_CODES', () => {
@@ -198,6 +256,37 @@ describe('mcp-stdio', () => {
       expect(JSONRPC_ERROR_CODES.METHOD_NOT_FOUND).toBe(-32601);
       expect(JSONRPC_ERROR_CODES.INVALID_PARAMS).toBe(-32602);
       expect(JSONRPC_ERROR_CODES.INTERNAL_ERROR).toBe(-32603);
+    });
+  });
+
+  describe('createMcpServer', () => {
+    it('should create a transport', () => {
+      const { transport } = createMcpServer({ nodes: [], edges: [] });
+
+      expect(transport).toHaveProperty('send');
+      expect(transport).toHaveProperty('onRequest');
+      expect(transport).toHaveProperty('close');
+    });
+
+    it('should return setContext function', () => {
+      const { setContext } = createMcpServer({ nodes: [], edges: [] });
+
+      expect(typeof setContext).toBe('function');
+    });
+
+    it('should initialize with wiki pages if provided', () => {
+      const wikiPages = [{ title: 'Test', content: 'Content' }];
+      const { setContext } = createMcpServer({ nodes: [], edges: [] }, wikiPages);
+
+      expect(typeof setContext).toBe('function');
+    });
+
+    it('should update context via setContext', () => {
+      const graph = { nodes: [], edges: [] };
+      const newGraph = { nodes: [{ id: 'n1' }], edges: [] };
+      const { setContext } = createMcpServer(graph);
+
+      expect(() => setContext(newGraph, [{ title: 'Updated', content: 'New content' }])).not.toThrow();
     });
   });
 });

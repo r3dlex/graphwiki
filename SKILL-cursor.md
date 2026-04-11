@@ -12,6 +12,9 @@
     "gemini",
     "cursor",
     "openclaw",
-    "copilot"
+    "copilot",
+    "windsurf",
+    "cody",
+    "codewhisperer"
   ]
 }

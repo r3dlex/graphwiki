@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { DriftDetector } from "./drift.js";
-import { writeFileSync, unlinkSync, existsSync, mkdirSync } from "fs";
-import { dirname } from "path";
+import { unlinkSync, existsSync } from "fs";
 
 describe("DriftDetector", () => {
   const tmpPath = "/tmp/drift-test-log.json";

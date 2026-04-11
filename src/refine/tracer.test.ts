@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Tracer, createTracer } from './tracer.js';
-import type { GraphDocument, QueryResult } from '../types.js';
+import type { GraphDocument } from '../types.js';
+import type { QueryResult } from './tracer.js';
 
 describe('Tracer', () => {
   let tracer: Tracer;

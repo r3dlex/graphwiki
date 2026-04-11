@@ -1,9 +1,24 @@
 // Baseline runner for benchmark comparisons in GraphWiki v2
 
-import type { CorpusSpec, BenchmarkRun } from '../types.js';
+import type { CorpusSpec, BenchmarkRun, BenchmarkReport } from '../types.js';
 import { glob } from 'glob';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
+import { getGlobalCounter } from './tiktoken-counter.js';
+
+function fallbackCount(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+function fallbackCountMessages(messages: { role: string; content: string }[]): number {
+  return messages.reduce((sum, m) => sum + Math.ceil(m.content.length / 4), 0);
+}
+
+export type TokenCounterLike = {
+  count: (text: string) => number | Promise<number>;
+  countMessages: (messages: { role: string; content: string }[]) => number | Promise<number>;
+  record: (tokens: number) => void;
+};
 
 /**
  * BaselineRunner - Runs different query methods against a corpus
@@ -15,23 +30,36 @@ import { join } from 'path';
  * - graphwiki: Uses GraphWiki's tiered approach
  */
 export class BaselineRunner {
-  private tokenCounter: {
-    count: (text: string) => number;
-    countMessages: (messages: { role: string; content: string }[]) => number;
-    record: (tokens: number) => void;
-  };
+  private tokenCounter: TokenCounterLike;
 
-  constructor(tokenCounter?: {
-    count: (text: string) => number;
-    countMessages: (messages: { role: string; content: string }[]) => number;
-    record: (tokens: number) => void;
-  }) {
+  constructor(tokenCounter?: TokenCounterLike) {
     this.tokenCounter = tokenCounter ?? {
-      count: (text: string) => Math.ceil(text.length / 4),
-      countMessages: (messages: { role: string; content: string }[]) =>
-        messages.reduce((sum, m) => sum + Math.ceil(m.content.length / 4), 0),
+      count: (text: string) => fallbackCount(text),
+      countMessages: (messages: { role: string; content: string }[]) => fallbackCountMessages(messages),
       record: () => {},
     };
+  }
+
+  /**
+   * Create a BaselineRunner using real tiktoken counting
+   */
+  static async withTiktoken(): Promise<BaselineRunner> {
+    const counter = getGlobalCounter();
+    return new BaselineRunner({
+      count: (text: string) => counter.count(text),
+      countMessages: (messages) => counter.countMessages(messages as import('../types.js').Message[]),
+      record: (tokens: number) => counter.record(tokens),
+    });
+  }
+
+  private async countAll(text: string): Promise<number> {
+    const result = this.tokenCounter.count(text);
+    return result instanceof Promise ? result : result;
+  }
+
+  private async countMessagesAll(messages: { role: string; content: string }[]): Promise<number> {
+    const result = this.tokenCounter.countMessages(messages);
+    return result instanceof Promise ? result : result;
   }
 
   /**
@@ -42,7 +70,6 @@ export class BaselineRunner {
    */
   async runGrepAssisted(query: string, corpus: CorpusSpec): Promise<BenchmarkRun> {
     const startTime = Date.now();
-    let tokensConsumed = 0;
 
     // 1. Simulate grep for terms in query
     const queryTerms = query.toLowerCase().split(/\s+/);
@@ -69,19 +96,14 @@ export class BaselineRunner {
       } catch {}
     }
 
-    const readTokens = this.tokenCounter.count(allContent);
-    tokensConsumed += readTokens;
-
-    // 3. Simulate LLM answer generation
-    const questionTokens = this.tokenCounter.count(query);
-    tokensConsumed += questionTokens;
+    const readTokens = await this.countAll(allContent);
+    const questionTokens = await this.countAll(query);
 
     // Simulate answer
     const answer = `Based on grep analysis of ${matchingFiles.length} files, found relevant content in ${Math.min(10, matchingFiles.length)} files.`;
+    const outputTokens = await this.countAll(answer);
 
-    const outputTokens = this.tokenCounter.count(answer);
-    tokensConsumed += outputTokens;
-
+    const tokensConsumed = readTokens + questionTokens + outputTokens;
     this.tokenCounter.record(tokensConsumed);
 
     return {
@@ -99,7 +121,6 @@ export class BaselineRunner {
    */
   async runNaive(query: string, corpus: CorpusSpec): Promise<BenchmarkRun> {
     const startTime = Date.now();
-    let tokensConsumed = 0;
 
     // 1. Read ALL files (naive approach)
     let allContent = '';
@@ -110,8 +131,7 @@ export class BaselineRunner {
       } catch {}
     }
 
-    const readTokens = this.tokenCounter.count(allContent);
-    tokensConsumed += readTokens;
+    const readTokens = await this.countAll(allContent);
 
     // 2. Count matching terms
     const queryTerms = query.toLowerCase().split(/\s+/);
@@ -123,13 +143,11 @@ export class BaselineRunner {
     }
 
     // 3. Simulate LLM answer
-    const questionTokens = this.tokenCounter.count(query);
-    tokensConsumed += questionTokens;
-
+    const questionTokens = await this.countAll(query);
     const answer = `Naive analysis found ${matchCount} term matches across ${corpus.files.length} files.`;
-    const outputTokens = this.tokenCounter.count(answer);
-    tokensConsumed += outputTokens;
+    const outputTokens = await this.countAll(answer);
 
+    const tokensConsumed = readTokens + questionTokens + outputTokens;
     this.tokenCounter.record(tokensConsumed);
 
     return {
@@ -147,11 +165,9 @@ export class BaselineRunner {
    */
   async runRAG(query: string, corpus: CorpusSpec): Promise<BenchmarkRun> {
     const startTime = Date.now();
-    let tokensConsumed = 0;
 
     // 1. Embed query (simulate)
-    const queryTokens = this.tokenCounter.count(query);
-    tokensConsumed += queryTokens;
+    const queryTokens = await this.countAll(query);
 
     // 2. Retrieve relevant chunks (simulate semantic search)
     const relevantFiles: string[] = [];
@@ -164,8 +180,7 @@ export class BaselineRunner {
 
     // 3. Build context
     const context = relevantFiles.join('\n---\n');
-    const contextTokens = this.tokenCounter.count(context);
-    tokensConsumed += contextTokens;
+    const contextTokens = await this.countAll(context);
 
     // 4. Generate answer
     const messages = [
@@ -179,14 +194,11 @@ export class BaselineRunner {
       },
     ];
 
-    const messageTokens = this.tokenCounter.countMessages(messages);
-    tokensConsumed += messageTokens;
-
+    const messageTokens = await this.countMessagesAll(messages);
     const answer = `RAG analysis of ${relevantFiles.length} retrieved documents provides relevant context.`;
+    const outputTokens = await this.countAll(answer);
 
-    const outputTokens = this.tokenCounter.count(answer);
-    tokensConsumed += outputTokens;
-
+    const tokensConsumed = queryTokens + contextTokens + messageTokens + outputTokens;
     this.tokenCounter.record(tokensConsumed);
 
     return {
@@ -206,26 +218,21 @@ export class BaselineRunner {
    */
   async runGraphWiki(query: string, _corpus: CorpusSpec): Promise<BenchmarkRun> {
     const startTime = Date.now();
-    let tokensConsumed = 0;
 
     // Tier 1: Quick graph lookup (low tokens)
-    const tier1Tokens = this.tokenCounter.count(query) * 2;
-    tokensConsumed += tier1Tokens;
+    const tier1Tokens = await this.countAll(query) * 2;
 
     // Tier 2: Load relevant wiki pages
     const tier2Content = 'Graph wiki context loaded from knowledge graph.';
-    const tier2Tokens = this.tokenCounter.count(tier2Content);
-    tokensConsumed += tier2Tokens;
+    const tier2Tokens = await this.countAll(tier2Content);
 
     // Tier 3: Deep extraction if needed
     const tier3Tokens = tier2Tokens * 3;
-    tokensConsumed += tier3Tokens;
 
-    const answer = `GraphWiki tiered approach consumed ${tokensConsumed} tokens with optimal precision.`;
+    const answer = `GraphWiki tiered approach consumed ${tier1Tokens + tier2Tokens + tier3Tokens} tokens with optimal precision.`;
+    const outputTokens = await this.countAll(answer);
 
-    const outputTokens = this.tokenCounter.count(answer);
-    tokensConsumed += outputTokens;
-
+    const tokensConsumed = tier1Tokens + tier2Tokens + tier3Tokens + outputTokens;
     this.tokenCounter.record(tokensConsumed);
 
     return {
@@ -253,6 +260,57 @@ export class BaselineRunner {
 
     return results;
   }
+}
+
+/**
+ * Run baseline comparison between methods using held-out queries
+ */
+export async function baselineComparison(
+  corpus: CorpusSpec,
+  queries: string[],
+  runner: BaselineRunner
+): Promise<{
+  results: BenchmarkRun[];
+  report: BenchmarkReport;
+}> {
+  const allResults: BenchmarkRun[] = [];
+
+  for (const query of queries) {
+    const results = await runner.runAll(query, corpus);
+    allResults.push(...results);
+  }
+
+  const totalTokens = allResults.reduce((sum, r) => sum + r.tokens_consumed, 0);
+  const avgTokensPerQuery = allResults.length > 0 ? totalTokens / allResults.length : 0;
+
+  // Determine winner based on average tokens per query (lower is better)
+  const byMethod = new Map<string, { total: number; count: number }>();
+  for (const r of allResults) {
+    const existing = byMethod.get(r.method) ?? { total: 0, count: 0 };
+    existing.total += r.tokens_consumed;
+    existing.count++;
+    byMethod.set(r.method, existing);
+  }
+
+  let winner = 'none';
+  let lowestAvg = Infinity;
+  for (const [method, stats] of byMethod) {
+    const avg = stats.total / stats.count;
+    if (avg < lowestAvg) {
+      lowestAvg = avg;
+      winner = method;
+    }
+  }
+
+  const report: BenchmarkReport = {
+    generated_at: new Date().toISOString(),
+    runs: allResults,
+    total_tokens: totalTokens,
+    avg_tokens_per_query: avgTokensPerQuery,
+    winner,
+  };
+
+  return { results: allResults, report };
 }
 
 /**

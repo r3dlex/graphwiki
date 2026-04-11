@@ -63,7 +63,6 @@ function generateCypher(graph: GraphDocument): string {
  * Generate Cypher CREATE statement for a node
  */
 function generateNodeCreate(node: GraphNode): string {
-  const _id = escapeCypherString(node.id);
   const label = node.type ? escapeCypherString(node.type) : 'GraphNode';
 
   const props: string[] = [];
@@ -123,32 +122,6 @@ function generateRelationshipCreate(edge: GraphEdge): string {
 function escapeCypherString(str: string): string {
   if (str === null || str === undefined) return 'null';
   return `'${String(str).replace(/'/g, "\\'")}'`;
-}
-
-/**
- * Generate parameter file for import
- */
-function _generateImportParams(graph: GraphDocument): string {
-  return JSON.stringify(
-    {
-      nodes: graph.nodes.map(n => ({
-        id: n.id,
-        label: n.label,
-        type: n.type,
-        community: n.community,
-        properties: n.properties,
-      })),
-      edges: graph.edges.map(e => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        weight: e.weight,
-        label: e.label,
-      })),
-    },
-    null,
-    2
-  );
 }
 
 /**

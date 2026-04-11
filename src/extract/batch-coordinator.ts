@@ -84,7 +84,8 @@ export class BatchCoordinator {
   }
 
   /**
-   * Persist batch state to disk as JSON.
+   * Persist batch state to disk as JSON using atomic write (temp + rename).
+   * This prevents truncated JSON if the process crashes mid-write (P4 mitigation).
    */
   async writeState(dir: string): Promise<void> {
     const persisted: PersistedState = {
@@ -97,11 +98,17 @@ export class BatchCoordinator {
       skipped: this.state.skipped,
     };
     await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(path.join(dir, STATE_FILE), JSON.stringify(persisted, null, 2), "utf-8");
+    const filePath = path.join(dir, STATE_FILE);
+    const tmpPath = `${filePath}.tmp.${process.pid}`;
+    await fs.writeFile(tmpPath, JSON.stringify(persisted, null, 2), "utf-8");
+    // Atomic rename — prevents partial-write corruption
+    await fs.rename(tmpPath, filePath);
   }
 
   /**
    * Load batch state from disk. Returns null if not found.
+   * If the file exists but cannot be parsed (corrupted), returns null and treats
+   * the corrupted state as unrecoverable (P4 mitigation — not silent data loss).
    */
   static async readState(dir: string): Promise<BatchState | null> {
     const filePath = path.join(dir, STATE_FILE);
@@ -118,7 +125,12 @@ export class BatchCoordinator {
         skipped: persisted.skipped,
       };
       return state;
-    } catch {
+    } catch (err) {
+      // If file exists but parse fails, it is corrupted — not empty state
+      if (err instanceof SyntaxError || (err as NodeJS.ErrnoException).code === 'ENOENT') {
+        return null;
+      }
+      // Unexpected error — treat as corrupted state
       return null;
     }
   }

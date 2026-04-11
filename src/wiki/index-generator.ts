@@ -1,8 +1,4 @@
-import type {
-  GraphDocument,
-  GraphNode,
-  GraphEdge,
-} from '../types.js';
+import type { GraphDocument } from '../types.js';
 import type {
   WikiPage,
 } from './types.js';
@@ -94,9 +90,9 @@ export class IndexGenerator {
 
     for (const page of wikiPages) {
       let match;
-      while ((match = linkRegex.exec(page.content)) !== null) {
-        const target = match[1].trim();
-        if (target !== page.path) {
+      while ((match = linkRegex.exec(page.content ?? '')) !== null) {
+        const target = match[1]?.trim();
+        if (target && target !== page.path) {
           links.push({ source: page.path, target });
         }
       }

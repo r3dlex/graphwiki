@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
-import type { GraphDocument, GraphNode, GraphEdge, LLMProvider, Message } from '../types.js';
+import type { GraphDocument, LLMProvider } from '../types.js';
 import type { QueryConfig, QueryResult } from './types.js';
 import { WikiGraphMap } from '../wiki/wiki-graph-map.js';
 
@@ -137,7 +137,7 @@ export class QueryRouter {
     const reportPath = join(this.wikiDir, '..', 'graphwiki-out', 'GRAPH_REPORT.md');
 
     if (!existsSync(reportPath)) {
-      return { answer: 'Graph report not found. Please run the reporter first.', tier: 1, tokens: 0, pages_loaded: [] };
+      return { answer: 'Graph report not found. Please run the reporter first.', tier: 1, tokens: 0, pages_loaded: [], nodes_traversed: [] };
     }
 
     try {
@@ -157,9 +157,10 @@ export class QueryRouter {
         tier: 1,
         tokens: tokens + (result.usage?.total_tokens ?? 0),
         pages_loaded: [reportPath],
+        nodes_traversed: [],
       };
     } catch {
-      return { answer: 'Failed to load graph report.', tier: 1, tokens: 0, pages_loaded: [] };
+      return { answer: 'Failed to load graph report.', tier: 1, tokens: 0, pages_loaded: [], nodes_traversed: [] };
     }
   }
 
@@ -191,7 +192,7 @@ export class QueryRouter {
     }
 
     if (summaries.length === 0) {
-      return { answer: '', tier: 2, tokens: 0, pages_loaded: [] };
+      return { answer: '', tier: 2, tokens: 0, pages_loaded: [], nodes_traversed: [] };
     }
 
     const combined = summaries.join('\n---\n');
@@ -210,6 +211,7 @@ export class QueryRouter {
       tier: 2,
       tokens: tokens + (result.usage?.total_tokens ?? 0),
       pages_loaded: pagesLoaded,
+      nodes_traversed: [],
     };
   }
 
@@ -237,7 +239,7 @@ export class QueryRouter {
     }
 
     if (pageContents.length === 0) {
-      return { answer: '', tier: 3, tokens: 0, pages_loaded: [] };
+      return { answer: '', tier: 3, tokens: 0, pages_loaded: [], nodes_traversed: [] };
     }
 
     const combined = pageContents.join('\n\n');
@@ -256,6 +258,7 @@ export class QueryRouter {
       tier: 3,
       tokens: tokens + (result.usage?.total_tokens ?? 0),
       pages_loaded: pagesLoaded,
+      nodes_traversed: [],
     };
   }
 

@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"git log --oneline -5\",\"description\":\"Show recent commits\"}",
-  "error": "Exit code 128\nfatal: your current branch 'main' does not have any commits yet",
-  "timestamp": "2026-04-10T11:52:48.213Z",
-  "retry_count": 1
+  "tool_input_preview": "{\"command\":\"npx vitest run src/extract/whisper.test.ts 2>&1\",\"timeout\":60000,\"description\":\"Run whisper tests\"}",
+  "error": "Exit code 1\n\n RUN  v3.2.4 /Users/andreburgstahler/Ws/Personal/graphwiki-skill\n\n ❯ src/extract/whisper.test.ts (6 tests | 2 failed) 11ms\n   ✓ whisper > transcribeAudioFile > should throw error when OPENAI_API_KEY is not set 5ms\n   ✓ whisper > transcribeAudioFile > should handle API error response 1ms\n   ✓ whisper > transcribeAudioFile > should return transcription result on success 0ms\n   × whisper > transcribeFromUrl > should throw when OPENAI_API_KEY is not set 3ms\n     → expected [Function] to...",
+  "timestamp": "2026-04-11T12:29:18.287Z",
+  "retry_count": 2
 }

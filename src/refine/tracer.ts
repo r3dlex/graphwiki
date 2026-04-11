@@ -1,7 +1,17 @@
 // Backward tracer for GraphWiki v2
 // Traces query failures to identify root causes
 
-import type { GraphDocument, GraphNode, TraceResult, QueryResult } from '../types.js';
+import type { GraphDocument, TraceResult } from '../types.js';
+
+export interface QueryResult {
+  query?: string;
+  answer?: string;
+  context?: { source?: string; content?: string }[];
+  nodes?: { id?: string; label?: string; type?: string }[];
+  tier?: number;
+  tokens_used?: number;
+  duration_ms?: number;
+}
 
 /**
  * Backward tracer for diagnosing query failures
@@ -41,7 +51,7 @@ export class Tracer {
   /**
    * Trace forward: what was accessed during the query
    */
-  private traceForwardPath(query: string, result: QueryResult) {
+  private traceForwardPath(_query: string, result: QueryResult) {
     // Wiki pages that were loaded
     const wikiPagesLoaded = this.extractWikiPages(result);
 
@@ -132,7 +142,7 @@ export class Tracer {
     // In a real implementation, this would extract from the actual result
     // For now, we return a placeholder based on context
     if (result.context && Array.isArray(result.context)) {
-      return result.context.map(c => c.source ?? 'unknown').slice(0, 10);
+      return result.context.map((c: { source?: string }) => c.source ?? 'unknown').slice(0, 10);
     }
     return [];
   }
@@ -142,7 +152,7 @@ export class Tracer {
    */
   private extractGraphNodes(result: QueryResult): string[] {
     if (result.nodes && Array.isArray(result.nodes)) {
-      return result.nodes.map(n => n.id ?? 'unknown');
+      return result.nodes.map((n: { id?: string }) => n.id ?? 'unknown');
     }
     return [];
   }
@@ -179,11 +189,11 @@ export class Tracer {
     }
 
     // Find orphan nodes (nodes with no edges in large graph)
-    const nodeIds = new Set(result.nodes?.map(n => n.id) ?? []);
+    const nodeIds = new Set<string>(result.nodes?.map((n: { id?: string }) => n.id).filter((id): id is string => id !== undefined) ?? []);
     for (const nodeId of nodeIds) {
       const edges = graph.edges.filter(e => e.source === nodeId || e.target === nodeId);
       if (edges.length === 0 && graph.nodes.length > 10) {
-        weakNodes.push(nodeId ?? 'unknown');
+        weakNodes.push(nodeId);
       }
     }
 

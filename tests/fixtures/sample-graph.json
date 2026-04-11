@@ -1,0 +1,51 @@
+{
+  "nodes": [
+    {
+      "id": "node:a",
+      "label": "AlphaFunction",
+      "type": "function",
+      "properties": {
+        "language": "typescript"
+      },
+      "community": 1
+    },
+    {
+      "id": "node:b",
+      "label": "BetaClass",
+      "type": "class",
+      "properties": {
+        "language": "typescript"
+      },
+      "community": 1
+    },
+    {
+      "id": "node:c",
+      "label": "GammaModule",
+      "type": "module",
+      "properties": {
+        "language": "typescript"
+      },
+      "community": 2
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge:ab",
+      "source": "node:a",
+      "target": "node:b",
+      "weight": 1.0,
+      "label": "calls"
+    },
+    {
+      "id": "edge:bc",
+      "source": "node:b",
+      "target": "node:c",
+      "weight": 1.0,
+      "label": "imports"
+    }
+  ],
+  "metadata": {
+    "completeness": 0.67,
+    "generated_at": "2026-04-11T00:00:00.000Z"
+  }
+}

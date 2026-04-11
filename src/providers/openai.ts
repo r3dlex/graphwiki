@@ -1,5 +1,6 @@
 // OpenAI provider for GraphWiki v2
 
+// @ts-ignore
 import OpenAI from 'openai';
 import type { Message, CompletionOptions, CompletionResult } from '../types.js';
 import type { LLMProvider } from './provider.js';

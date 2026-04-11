@@ -1,9 +1,8 @@
 // Graph delta computation for GraphWiki v2
 // Computes the difference between two graph versions
 
-import type { GraphDocument, GraphDelta, GraphNode, GraphEdge } from "../types.js";
+import type { GraphDocument, GraphDelta, GraphEdge } from "../types.js";
 import { writeFileSync, mkdirSync, existsSync } from "fs";
-import { dirname } from "path";
 
 export function computeDelta(
   oldGraph: GraphDocument,
@@ -41,23 +40,32 @@ export function computeDelta(
     .filter((id) => oldNodeIds.has(id) && !unchangedIds.includes(id));
   const modifiedNodes = modifiedNodeIds.map((id) => newNodeMap.get(id)!);
 
-  // Edge diff
-  const oldEdgeSet = new Set(oldGraph.edges.map((e) => `${e.source}::${e.target}`));
-  const newEdgeSet = new Set(newGraph.edges.map((e) => `${e.source}::${e.target}`));
+  // Edge diff - use directed key scheme if graph.metadata.directed is true
+  const isDirected = oldGraph.metadata?.directed === true || newGraph.metadata?.directed === true;
+
+  const oldEdgeSet = new Set(
+    oldGraph.edges.map((e) => isDirected ? `${e.source}->${e.target}` : `${e.source}::${e.target}`)
+  );
+  const newEdgeSet = new Set(
+    newGraph.edges.map((e) => isDirected ? `${e.source}->${e.target}` : `${e.source}::${e.target}`)
+  );
 
   const addedEdgeKeys = [...newEdgeSet].filter((k) => !oldEdgeSet.has(k));
   const removedEdgeKeys = [...oldEdgeSet].filter((k) => !newEdgeSet.has(k));
 
   const addedEdges = addedEdgeKeys
     .map((key) => {
-      const [source, target] = key.split("::");
+      // directed keys use "->", undirected use "::"
+      const separator = key.includes("->") ? "->" : "::";
+      const [source, target] = key.split(separator);
       return newGraph.edges.find((e) => e.source === source && e.target === target);
     })
     .filter(Boolean) as GraphEdge[];
 
   const removedEdges = removedEdgeKeys
     .map((key) => {
-      const [source, target] = key.split("::");
+      const separator = key.includes("->") ? "->" : "::";
+      const [source, target] = key.split(separator);
       return oldGraph.edges.find((e) => e.source === source && e.target === target);
     })
     .filter(Boolean) as GraphEdge[];

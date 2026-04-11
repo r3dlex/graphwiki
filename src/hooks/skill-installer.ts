@@ -3,8 +3,6 @@
 
 import { writeFile, mkdir, readFile, access } from 'fs/promises';
 import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-import { existsSync } from 'fs';
 
 export type Platform = 'claude' | 'codex' | 'auggie' | 'gemini' | 'cursor' | 'openclaw';
 
@@ -478,7 +476,7 @@ export async function installHook(): Promise<void> {
  */
 export async function uninstallHook(): Promise<void> {
   const { generateHooksJsonEntries } = await import('./skill-generator.js');
-  const entries = JSON.parse(generateHooksJsonEntries()) as HooksJson;
+  JSON.parse(generateHooksJsonEntries()) as HooksJson;
 
   try {
     const content = await readFile(HOOKS_JSON_PATH, 'utf-8');
@@ -492,7 +490,7 @@ export async function uninstallHook(): Promise<void> {
     ];
 
     for (const event of Object.keys(existing.hooks)) {
-      existing.hooks[event] = existing.hooks[event].map(matcher => ({
+      existing.hooks[event]?.map(matcher => ({
         ...matcher,
         hooks: matcher.hooks.filter(h =>
           !graphwikiCommands.some(cmd => h.command?.includes(cmd))

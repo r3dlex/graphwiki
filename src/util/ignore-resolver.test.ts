@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { resolveIgnores, type IgnoreSources } from "./ignore-resolver.js";
+import { resolveIgnores } from "./ignore-resolver.js";
 
 vi.mock("fs/promises", () => ({
   readFile: vi.fn(),
@@ -9,12 +9,12 @@ const { readFile } = await import("fs/promises");
 
 beforeEach(() => {
   vi.resetModules();
-  readFile.mockReset();
+  (readFile as any).mockReset();
 });
 
 describe("resolveIgnores", () => {
   it("all three sources present -- patterns merged with deduplication", async () => {
-    readFile.mockImplementation((path: string) => {
+    (readFile as any).mockImplementation((path: string) => {
       const p = path.toString();
       if (p.endsWith(".graphwiki/config.json")) {
         return Promise.resolve(JSON.stringify({ extraction: { ignore_patterns: ["foo/", "bar/"] } }));
@@ -45,7 +45,7 @@ describe("resolveIgnores", () => {
   });
 
   it("missing .graphwikiignore -- returns patterns from config.json + .graphifyignore", async () => {
-    readFile.mockImplementation((path: string) => {
+    (readFile as any).mockImplementation((path: string) => {
       const p = path.toString();
       if (p.endsWith(".graphwiki/config.json")) {
         return Promise.resolve(JSON.stringify({ extraction: { ignore_patterns: ["a/", "b/"] } }));
@@ -66,7 +66,7 @@ describe("resolveIgnores", () => {
   });
 
   it("missing .graphifyignore -- returns patterns from config.json + .graphwikiignore", async () => {
-    readFile.mockImplementation((path: string) => {
+    (readFile as any).mockImplementation((path: string) => {
       const p = path.toString();
       if (p.endsWith(".graphwiki/config.json")) {
         return Promise.resolve(JSON.stringify({ extraction: { ignore_patterns: ["x/"] } }));
@@ -87,7 +87,7 @@ describe("resolveIgnores", () => {
   });
 
   it("config.json exists but is malformed JSON -- graceful degradation returns patterns from both ignore files", async () => {
-    readFile.mockImplementation((path: string) => {
+    (readFile as any).mockImplementation((path: string) => {
       const p = path.toString();
       if (p.endsWith(".graphwiki/config.json")) {
         return Promise.resolve("{ invalid json }");
@@ -108,7 +108,7 @@ describe("resolveIgnores", () => {
   });
 
   it("missing config.json (or missing extraction.ignore_patterns key) -- returns patterns from both ignore files", async () => {
-    readFile.mockImplementation((path: string) => {
+    (readFile as any).mockImplementation((path: string) => {
       const p = path.toString();
       if (p.endsWith(".graphwiki/config.json")) {
         return Promise.reject(new Error("ENOENT"));
@@ -129,7 +129,7 @@ describe("resolveIgnores", () => {
   });
 
   it("comments (# ...) and blank lines are stripped from file-based ignores", async () => {
-    readFile.mockImplementation((path: string) => {
+    (readFile as any).mockImplementation((path: string) => {
       const p = path.toString();
       if (p.endsWith(".graphwiki/config.json")) {
         return Promise.resolve(JSON.stringify({ extraction: { ignore_patterns: ["config/"] } }));
@@ -154,7 +154,7 @@ describe("resolveIgnores", () => {
   });
 
   it("deduplication -- identical patterns from multiple sources appear only once", async () => {
-    readFile.mockImplementation((path: string) => {
+    (readFile as any).mockImplementation((path: string) => {
       const p = path.toString();
       if (p.endsWith(".graphwiki/config.json")) {
         return Promise.resolve(JSON.stringify({ extraction: { ignore_patterns: ["dup/", "unique1/"] } }));

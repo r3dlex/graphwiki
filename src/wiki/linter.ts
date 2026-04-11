@@ -1,6 +1,5 @@
 import { readFileSync, readdirSync, existsSync } from 'fs';
-import { join, dirname, relative } from 'path';
-import { fileURLToPath } from 'url';
+import { join, relative } from 'path';
 import type { GraphDocument } from '../types.js';
 import type {
   WikiPage,
@@ -11,8 +10,6 @@ import type {
   BrokenLink,
 } from './types.js';
 import matter from 'gray-matter';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export class WikiLinter {
   private graph: GraphDocument;
@@ -102,8 +99,9 @@ export class WikiLinter {
     for (const page of wikiPages) {
       let match;
       while ((match = linkRegex.exec(page.content)) !== null) {
-        const linkPath = match[1].trim();
-        const linkText = match[2]?.trim() || linkPath;
+        const linkPath = match[1]?.trim() ?? '';
+        const linkText = match[2]?.trim() ?? linkPath ?? '';
+        if (!linkPath) continue;
 
         if (linkPath.startsWith('/')) {
           const relativePath = join(this.wikiDir, linkPath + '.md');

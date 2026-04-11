@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { Diagnostician, createDiagnostician } from './diagnostician.js';
 import type { GraphNode, TraceResult } from '../types.js';
 

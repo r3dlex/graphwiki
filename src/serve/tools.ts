@@ -236,6 +236,16 @@ export function registerTools(
       return { content: [{ type: 'text', text: JSON.stringify(result) }] };
     }
 
+    // B9: MCP initialize handshake
+    if (req.method === 'initialize') {
+      return {
+        protocolVersion: '2024-11-05',
+        serverInfo: { name: 'graphwiki', version: '2.0.0' },
+        capabilities: { tools: {} },
+        instructions: 'GraphWiki MCP server. Use tools/list to discover available tools.',
+      };
+    }
+
     throw new Error(`Unknown method: ${req.method}`);
   };
 }

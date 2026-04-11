@@ -54,6 +54,7 @@ export interface CompilationConfig {
   stage3_budget_in?: number;
   stage3_budget_out?: number;
   parallel_limit?: number;
+  mode?: 'standard' | 'deep';
 }
 
 // Query config for QueryRouter

@@ -160,7 +160,7 @@ export class Diagnostician {
    * Analyze extraction patterns
    */
   analyzeExtractionPattern(
-    sourceSize: number,
+    _sourceSize: number,
     astNodeCount: number,
     llmNodeCount: number,
     wordCount: number

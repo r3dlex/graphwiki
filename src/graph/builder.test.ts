@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { GraphBuilder } from "./builder.js";
-import type { GraphNode, GraphEdge } from "../types.js";
+import type { GraphNode } from "../types.js";
 
 describe("GraphBuilder", () => {
   describe("addNodes", () => {
     it("should add nodes and generate deterministic IDs", () => {
       const builder = new GraphBuilder();
       const nodes: GraphNode[] = [
-        { label: "User", type: "class" },
-        { label: "Admin", type: "class" },
+        { id: "node-1", label: "User", type: "class" },
+        { id: "node-2", label: "Admin", type: "class" },
       ];
 
       builder.addNodes(nodes);
@@ -38,8 +38,8 @@ describe("GraphBuilder", () => {
       const doc = builder.build();
 
       expect(doc.nodes.length).toBe(1);
-      expect(doc.nodes[0].provenance).toContain("file1");
-      expect(doc.nodes[0].provenance).toContain("file2");
+      expect(doc.nodes[0]?.provenance).toContain("file1");
+      expect(doc.nodes[0]?.provenance).toContain("file2");
     });
 
     it("should not overwrite provenance on duplicate add", () => {
@@ -51,12 +51,12 @@ describe("GraphBuilder", () => {
         { id: "id1", label: "X", type: "class", provenance: ["b"] },
       ]);
       const doc = builder.build();
-      expect(doc.nodes[0].provenance).toContain("a");
-      expect(doc.nodes[0].provenance).toContain("b");
+      expect(doc.nodes[0]?.provenance).toContain("a");
+      expect(doc.nodes[0]?.provenance).toContain("b");
     });
   });
 
-  describe("addEdges", () => {
+  describe("addEdges undirected mode", () => {
     it("should add edges", () => {
       const builder = new GraphBuilder();
       builder.addNodes([
@@ -67,8 +67,8 @@ describe("GraphBuilder", () => {
       const doc = builder.build();
 
       expect(doc.edges.length).toBe(1);
-      expect(doc.edges[0].source).toBe("a");
-      expect(doc.edges[0].target).toBe("b");
+      expect(doc.edges[0]?.source).toBe("a");
+      expect(doc.edges[0]?.target).toBe("b");
     });
 
     it("should sum weights of duplicate edges", () => {
@@ -100,6 +100,62 @@ describe("GraphBuilder", () => {
     });
   });
 
+  describe("addEdges directed mode", () => {
+    it("should preserve source/target ordering through duplicate adds", () => {
+      const builder = new GraphBuilder(true); // directed = true
+      builder.addNodes([
+        { id: "a", label: "A", type: "class" },
+        { id: "b", label: "B", type: "class" },
+      ]);
+      builder.addEdges([{ id: "e1", source: "a", target: "b", weight: 1 }]);
+      builder.addEdges([{ id: "e2", source: "a", target: "b", weight: 2 }]);
+      const doc = builder.build();
+
+      expect(doc.edges.length).toBe(1);
+      const edge = doc.edges.find((e) => e.source === "a" && e.target === "b");
+      expect(edge?.weight).toBe(3);
+      expect(edge?.directed).toBe(true);
+    });
+
+    it("should NOT accumulate reverse-key weight (A->B is distinct from B->A)", () => {
+      const builder = new GraphBuilder(true); // directed = true
+      builder.addNodes([
+        { id: "a", label: "A", type: "class" },
+        { id: "b", label: "B", type: "class" },
+      ]);
+      builder.addEdges([{ id: "e1", source: "a", target: "b", weight: 1 }]);
+      builder.addEdges([{ id: "e2", source: "b", target: "a", weight: 2 }]);
+      const doc = builder.build();
+
+      // Both edges should exist separately in directed mode
+      expect(doc.edges.length).toBe(2);
+      const edgeAB = doc.edges.find((e) => e.source === "a" && e.target === "b");
+      const edgeBA = doc.edges.find((e) => e.source === "b" && e.target === "a");
+      expect(edgeAB?.weight).toBe(1);
+      expect(edgeBA?.weight).toBe(2);
+    });
+
+    it("should handle mixed directed and undirected edges separately", () => {
+      const builder = new GraphBuilder(true); // directed = true
+      builder.addNodes([
+        { id: "a", label: "A", type: "class" },
+        { id: "b", label: "B", type: "class" },
+      ]);
+      // A->B and B->A should both be kept as distinct edges
+      builder.addEdges([{ id: "e1", source: "a", target: "b", weight: 1 }]);
+      builder.addEdges([{ id: "e2", source: "b", target: "a", weight: 1 }]);
+      const doc = builder.build();
+
+      expect(doc.edges.length).toBe(2);
+      const edgeAB = doc.edges.find((e) => e.source === "a" && e.target === "b");
+      const edgeBA = doc.edges.find((e) => e.source === "b" && e.target === "a");
+      expect(edgeAB?.weight).toBe(1);
+      expect(edgeBA?.weight).toBe(1);
+      expect(edgeAB?.directed).toBe(true);
+      expect(edgeBA?.directed).toBe(true);
+    });
+  });
+
   describe("build", () => {
     it("should generate completeness metadata", () => {
       const builder = new GraphBuilder();
@@ -124,14 +180,14 @@ describe("GraphBuilder", () => {
 
     it("should generate deterministic node IDs from source_file + label", () => {
       const builder = new GraphBuilder();
-      builder.addNodes([{ label: "User", type: "class", source_file: "models/user.ts" }]);
+      builder.addNodes([{ id: "node-1", label: "User", type: "class", source_file: "models/user.ts" }]);
       const doc1 = builder.build();
 
       const builder2 = new GraphBuilder();
-      builder2.addNodes([{ label: "User", type: "class", source_file: "models/user.ts" }]);
+      builder2.addNodes([{ id: "node-1", label: "User", type: "class", source_file: "models/user.ts" }]);
       const doc2 = builder2.build();
 
-      expect(doc1.nodes[0].id).toBe(doc2.nodes[0].id);
+      expect(doc1.nodes[0]?.id).toBe(doc2.nodes[0]?.id);
     });
   });
 });

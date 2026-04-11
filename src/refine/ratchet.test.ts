@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { Ratchet, createRatchet } from './ratchet.js';
 import type { QueryScore } from '../types.js';
 
@@ -128,7 +128,7 @@ describe('Ratchet', () => {
       const failures = ratchet.identifyFailures(scores);
 
       expect(failures.length).toBe(1);
-      expect(failures[0].query).toBe('fail1');
+      expect(failures[0]?.query).toBe('fail1');
     });
   });
 

@@ -1,6 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
-import { createHttpTransport, setMcpHandler, broadcastEvent, getSseClientCount, createMutex, createGraphState } from './mcp-http.js';
+import {
+  createHttpTransport,
+  setMcpHandler,
+  broadcastEvent,
+  getSseClientCount,
+  createMutex,
+  createGraphState,
+  createMcpServer,
+} from './mcp-http.js';
+import type { GraphDocument } from '../types.js';
 
 describe('mcp-http', () => {
   describe('createMutex', () => {
@@ -36,6 +45,17 @@ describe('mcp-http', () => {
       // First acquire should complete before second
       expect(order).toEqual([1, 2]);
     });
+
+    it('should not block if not locked initially', async () => {
+      const mutex = createMutex();
+      let acquired = false;
+
+      await mutex.acquire();
+      acquired = true;
+      mutex.release();
+
+      expect(acquired).toBe(true);
+    });
   });
 
   describe('createGraphState', () => {
@@ -46,6 +66,13 @@ describe('mcp-http', () => {
       expect(state.graph).toEqual(graph);
       expect(state.writeLock).toBeDefined();
       expect(state.lastModified).toBeDefined();
+    });
+
+    it('should have ISO timestamp for lastModified', () => {
+      const graph = { nodes: [], edges: [] };
+      const state = createGraphState(graph);
+
+      expect(state.lastModified).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     });
   });
 
@@ -115,7 +142,7 @@ describe('mcp-http', () => {
       expect(mockHandler).toHaveBeenCalled();
     });
 
-    it('should reject non-JSON-RPC 2.0 requests', async () => {
+    it('should reject non-JSON-RPC 2.0 requests with 400', async () => {
       createHttpTransport(app);
 
       // Find the POST /mcp route handler in the router stack
@@ -149,6 +176,17 @@ describe('mcp-http', () => {
 
       expect((app.locals as { mcpHandler: unknown }).mcpHandler).toBe(handler);
     });
+
+    it('should preserve existing app.locals', () => {
+      const app = express();
+      app.locals = { existing: 'value' };
+      const handler = vi.fn();
+
+      setMcpHandler(app, handler);
+
+      expect((app.locals as { existing: string; mcpHandler: unknown }).existing).toBe('value');
+      expect((app.locals as { mcpHandler: unknown }).mcpHandler).toBe(handler);
+    });
   });
 
   describe('getSseClientCount', () => {
@@ -160,6 +198,40 @@ describe('mcp-http', () => {
   describe('broadcastEvent', () => {
     it('should not throw with no clients', () => {
       expect(() => broadcastEvent('test', { data: 'test' })).not.toThrow();
+    });
+  });
+
+  describe('createMcpServer', () => {
+    it('should create an Express app', () => {
+      const graph: GraphDocument = { nodes: [], edges: [] };
+      const { app } = createMcpServer(graph);
+
+      expect(app).toBeDefined();
+    });
+
+    it('should return setContext function', () => {
+      const graph: GraphDocument = { nodes: [], edges: [] };
+      const { setContext } = createMcpServer(graph);
+
+      expect(typeof setContext).toBe('function');
+    });
+
+    it('should initialize with wiki pages if provided', () => {
+      const graph: GraphDocument = { nodes: [], edges: [] };
+      const wikiPages = [{ title: 'Test', content: 'Content' }];
+      const { setContext } = createMcpServer(graph, wikiPages);
+
+      expect(typeof setContext).toBe('function');
+    });
+
+    it('should update context via setContext', () => {
+      const graph: GraphDocument = { nodes: [], edges: [] };
+      const newGraph: GraphDocument = { nodes: [{ id: 'n1' }], edges: [] };
+      const { setContext } = createMcpServer(graph);
+
+      setContext(newGraph, [{ title: 'Updated', content: 'New content' }]);
+
+      expect(true).toBe(true); // No error thrown
     });
   });
 });

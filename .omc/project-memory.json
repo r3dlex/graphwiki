@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1775809642996,
-  "projectRoot": "/Users/andresilvaburgstahler/Ws/Personal/graphwiki-skill",
+  "lastScanned": 1775896468541,
+  "projectRoot": "/Users/andreburgstahler/Ws/Personal/graphwiki-skill",
   "techStack": {
     "languages": [
       {
@@ -33,14 +33,14 @@
         "category": "testing"
       }
     ],
-    "packageManager": "npm",
+    "packageManager": "pnpm",
     "runtime": null
   },
   "build": {
-    "buildCommand": "npm run build",
-    "testCommand": "npm test",
-    "lintCommand": "npm run lint",
-    "devCommand": "npm run dev",
+    "buildCommand": "pnpm build",
+    "testCommand": "pnpm test",
+    "lintCommand": "pnpm lint",
+    "devCommand": "pnpm dev",
     "scripts": {
       "build": "tsup",
       "dev": "tsup --watch",
@@ -52,11 +52,13 @@
       "test:integration": "vitest tests/integration",
       "test:benchmark": "vitest tests/benchmark",
       "test:watch": "vitest --watch",
-      "prepublishOnly": "tsup"
+      "generate:skills": "tsx src/hooks/skill-generator.ts",
+      "prepublishOnly": "pnpm run build && pnpm run generate:skills",
+      "release": "changesets publish"
     }
   },
   "conventions": {
-    "namingStyle": null,
+    "namingStyle": "camelCase",
     "importStyle": null,
     "testPattern": null,
     "fileOrganization": null
@@ -65,19 +67,107 @@
     "isMonorepo": false,
     "workspaces": [],
     "mainDirectories": [
+      "assets",
+      "docs",
+      "lib",
+      "scripts",
+      "spec",
       "src",
       "tests"
     ],
-    "gitBranches": null
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
   },
   "customNotes": [],
   "directoryMap": {
+    "arch": {
+      "path": "arch",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1775896468518,
+      "keyFiles": []
+    },
+    "assets": {
+      "path": "assets",
+      "purpose": "Static assets",
+      "fileCount": 4,
+      "lastAccessed": 1775896468518,
+      "keyFiles": [
+        "banner.png",
+        "buddy-artist.png",
+        "buddy-scholar.png",
+        "logo.png"
+      ]
+    },
+    "dist": {
+      "path": "dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 4,
+      "lastAccessed": 1775896468523,
+      "keyFiles": [
+        "cli.d.ts",
+        "cli.js",
+        "index.d.ts",
+        "index.js"
+      ]
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 0,
+      "lastAccessed": 1775896468524,
+      "keyFiles": []
+    },
+    "graphwiki-out": {
+      "path": "graphwiki-out",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1775896468526,
+      "keyFiles": []
+    },
+    "lib": {
+      "path": "lib",
+      "purpose": "Library code",
+      "fileCount": 1,
+      "lastAccessed": 1775896468528,
+      "keyFiles": [
+        "stdin.mjs"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 13,
+      "lastAccessed": 1775896468528,
+      "keyFiles": [
+        "graphwiki-auggie-posttool.mjs",
+        "graphwiki-auggie-pretool.mjs",
+        "graphwiki-auggie-session-start.mjs",
+        "graphwiki-build-report.mjs",
+        "graphwiki-build.mjs"
+      ]
+    },
+    "spec": {
+      "path": "spec",
+      "purpose": "Test specifications",
+      "fileCount": 3,
+      "lastAccessed": 1775896468529,
+      "keyFiles": [
+        "npm-release.md",
+        "pretooluse-hook.md",
+        "skill-architecture.md"
+      ]
+    },
     "src": {
       "path": "src",
       "purpose": "Source code",
-      "fileCount": 1,
-      "lastAccessed": 1775809642976,
+      "fileCount": 3,
+      "lastAccessed": 1775896468530,
       "keyFiles": [
+        "cli.ts",
+        "index.ts",
         "types.ts"
       ]
     },
@@ -85,316 +175,319 @@
       "path": "tests",
       "purpose": "Test files",
       "fileCount": 0,
-      "lastAccessed": 1775809642977,
+      "lastAccessed": 1775896468530,
       "keyFiles": []
     },
     "tests/fixtures": {
       "path": "tests/fixtures",
       "purpose": "Test fixtures",
-      "fileCount": 0,
-      "lastAccessed": 1775809642980,
-      "keyFiles": []
+      "fileCount": 2,
+      "lastAccessed": 1775896468534,
+      "keyFiles": [
+        "sample-graph.json",
+        "sample-wiki-pages.json"
+      ]
     }
   },
   "hotPaths": [
     {
-      "path": "src/serve/mcp-http.test.ts",
-      "accessCount": 22,
-      "lastAccessed": 1775821459165,
-      "type": "file"
-    },
-    {
-      "path": "src/dedup/embedding.ts",
-      "accessCount": 21,
-      "lastAccessed": 1775814481155,
+      "path": "src/cli.ts",
+      "accessCount": 63,
+      "lastAccessed": 1775906391854,
       "type": "file"
     },
     {
       "path": "src/types.ts",
+      "accessCount": 37,
+      "lastAccessed": 1775908813973,
+      "type": "file"
+    },
+    {
+      "path": "src/hooks/skill-generator.ts",
+      "accessCount": 35,
+      "lastAccessed": 1775911498930,
+      "type": "file"
+    },
+    {
+      "path": "src/serve/executor.ts",
       "accessCount": 18,
-      "lastAccessed": 1775816070236,
+      "lastAccessed": 1775908139868,
+      "type": "directory"
+    },
+    {
+      "path": "src/extract/ast-extractor.ts",
+      "accessCount": 18,
+      "lastAccessed": 1775909527157,
       "type": "file"
     },
     {
-      "path": "src/serve/mcp-http.ts",
-      "accessCount": 12,
-      "lastAccessed": 1775821414985,
-      "type": "file"
-    },
-    {
-      "path": "package.json",
-      "accessCount": 10,
-      "lastAccessed": 1775814999248,
-      "type": "file"
-    },
-    {
-      "path": "src/serve/mcp-stdio.ts",
-      "accessCount": 10,
-      "lastAccessed": 1775819924555,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/anthropic.test.ts",
-      "accessCount": 8,
-      "lastAccessed": 1775820964129,
-      "type": "file"
-    },
-    {
-      "path": "src/benchmark/baseline-runner.ts",
-      "accessCount": 7,
-      "lastAccessed": 1775810832413,
-      "type": "file"
-    },
-    {
-      "path": "src/benchmark/report-generator.ts",
-      "accessCount": 7,
-      "lastAccessed": 1775810838499,
+      "path": "vitest.config.ts",
+      "accessCount": 18,
+      "lastAccessed": 1775912111146,
       "type": "file"
     },
     {
       "path": "",
-      "accessCount": 7,
-      "lastAccessed": 1775819906543,
+      "accessCount": 17,
+      "lastAccessed": 1775910131150,
       "type": "directory"
     },
     {
-      "path": "src/providers/google.test.ts",
-      "accessCount": 7,
-      "lastAccessed": 1775820943182,
+      "path": "src/wiki/compiler.ts",
+      "accessCount": 16,
+      "lastAccessed": 1775907801851,
       "type": "file"
     },
     {
-      "path": "src/util/math.ts",
-      "accessCount": 6,
-      "lastAccessed": 1775813906759,
+      "path": "src",
+      "accessCount": 14,
+      "lastAccessed": 1775909549023,
+      "type": "directory"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 14,
+      "lastAccessed": 1775911795925,
       "type": "file"
     },
     {
-      "path": "src/dedup/deduplicator.ts",
-      "accessCount": 6,
-      "lastAccessed": 1775814115164,
+      "path": "src/watch/file-watcher.ts",
+      "accessCount": 13,
+      "lastAccessed": 1775908803349,
       "type": "file"
     },
     {
-      "path": "src/dedup/deduplicator.test.ts",
-      "accessCount": 6,
-      "lastAccessed": 1775814347609,
+      "path": "src/export/svg.ts",
+      "accessCount": 13,
+      "lastAccessed": 1775908930502,
       "type": "file"
     },
     {
-      "path": "src/providers/openai.test.ts",
-      "accessCount": 6,
-      "lastAccessed": 1775820976089,
-      "type": "file"
-    },
-    {
-      "path": "src/dedup/embedding.test.ts",
-      "accessCount": 5,
-      "lastAccessed": 1775814179212,
-      "type": "file"
-    },
-    {
-      "path": "src/wiki/updater.test.ts",
-      "accessCount": 4,
-      "lastAccessed": 1775810899412,
-      "type": "file"
-    },
-    {
-      "path": "src/benchmark/token-counter.test.ts",
-      "accessCount": 4,
-      "lastAccessed": 1775819916899,
-      "type": "file"
-    },
-    {
-      "path": "src/benchmark/token-counter.ts",
-      "accessCount": 4,
-      "lastAccessed": 1775820434346,
-      "type": "file"
-    },
-    {
-      "path": "src/wiki/compiler.test.ts",
-      "accessCount": 3,
-      "lastAccessed": 1775810731078,
-      "type": "file"
-    },
-    {
-      "path": "src/util/hash.ts",
-      "accessCount": 3,
-      "lastAccessed": 1775810766298,
-      "type": "file"
-    },
-    {
-      "path": "src/benchmark/baseline-runner.test.ts",
-      "accessCount": 3,
-      "lastAccessed": 1775810790294,
-      "type": "file"
-    },
-    {
-      "path": "src/benchmark/report-generator.test.ts",
-      "accessCount": 3,
-      "lastAccessed": 1775810859287,
-      "type": "file"
-    },
-    {
-      "path": "src/graph/traversal.ts",
-      "accessCount": 2,
-      "lastAccessed": 1775809735266,
-      "type": "file"
-    },
-    {
-      "path": "src/detect/detector.ts",
-      "accessCount": 2,
-      "lastAccessed": 1775809800273,
-      "type": "file"
-    },
-    {
-      "path": "src/detect/detector.test.ts",
-      "accessCount": 2,
-      "lastAccessed": 1775809800728,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/provider.ts",
-      "accessCount": 2,
-      "lastAccessed": 1775809809860,
-      "type": "file"
-    },
-    {
-      "path": "src/report/types.ts",
-      "accessCount": 2,
-      "lastAccessed": 1775810450383,
-      "type": "file"
-    },
-    {
-      "path": "src/query/types.ts",
-      "accessCount": 2,
-      "lastAccessed": 1775810553678,
-      "type": "file"
-    },
-    {
-      "path": "src/wiki/updater.ts",
-      "accessCount": 2,
-      "lastAccessed": 1775810701836,
-      "type": "file"
-    },
-    {
-      "path": "src/extract/extraction-cache.ts",
-      "accessCount": 2,
-      "lastAccessed": 1775813943592,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/anthropic.ts",
-      "accessCount": 2,
-      "lastAccessed": 1775820510846,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/google.ts",
-      "accessCount": 2,
-      "lastAccessed": 1775820814377,
+      "path": "src/extract/whisper.ts",
+      "accessCount": 12,
+      "lastAccessed": 1775910092499,
       "type": "file"
     },
     {
       "path": "src/graph/delta.ts",
-      "accessCount": 1,
-      "lastAccessed": 1775809664071,
+      "accessCount": 11,
+      "lastAccessed": 1775904169738,
       "type": "file"
     },
     {
       "path": "src/graph/cluster.ts",
-      "accessCount": 1,
-      "lastAccessed": 1775809693948,
+      "accessCount": 10,
+      "lastAccessed": 1775904165091,
       "type": "file"
     },
     {
-      "path": "src/providers/provider.test.ts",
-      "accessCount": 1,
-      "lastAccessed": 1775809718626,
+      "path": "src/extract/video-ingester.ts",
+      "accessCount": 10,
+      "lastAccessed": 1775908426948,
       "type": "file"
     },
     {
-      "path": "src/providers/openai.ts",
-      "accessCount": 1,
-      "lastAccessed": 1775809769430,
+      "path": "src/extract/url-ingester.ts",
+      "accessCount": 10,
+      "lastAccessed": 1775909449939,
       "type": "file"
     },
     {
-      "path": "src/util/hash.test.ts",
-      "accessCount": 1,
-      "lastAccessed": 1775809769657,
+      "path": "src/export/neo4j.ts",
+      "accessCount": 10,
+      "lastAccessed": 1775910099839,
       "type": "file"
     },
     {
-      "path": "src/util/frontmatter.test.ts",
-      "accessCount": 1,
-      "lastAccessed": 1775809769943,
+      "path": "src/serve/mcp-stdio.ts",
+      "accessCount": 9,
+      "lastAccessed": 1775912200762,
       "type": "file"
     },
     {
-      "path": "src/util/token-estimator.test.ts",
-      "accessCount": 1,
-      "lastAccessed": 1775809770236,
+      "path": "src/extract/ast-extractor.test.ts",
+      "accessCount": 8,
+      "lastAccessed": 1775909464785,
       "type": "file"
     },
     {
-      "path": "src/graph/cluster.test.ts",
-      "accessCount": 1,
-      "lastAccessed": 1775809933794,
-      "type": "file"
+      "path": "src/wiki/updater.ts",
+      "accessCount": 8,
+      "lastAccessed": 1775911844290,
+      "type": "directory"
     },
     {
-      "path": "src/graph/drift.test.ts",
-      "accessCount": 1,
-      "lastAccessed": 1775809934091,
-      "type": "file"
-    },
-    {
-      "path": "src/graph/traversal.test.ts",
-      "accessCount": 1,
-      "lastAccessed": 1775809934419,
+      "path": "SKILL.md",
+      "accessCount": 7,
+      "lastAccessed": 1775905976980,
       "type": "file"
     },
     {
       "path": "src/graph/delta.test.ts",
-      "accessCount": 1,
-      "lastAccessed": 1775809934724,
+      "accessCount": 5,
+      "lastAccessed": 1775907618938,
       "type": "file"
     },
     {
       "path": "src/wiki/types.ts",
-      "accessCount": 1,
-      "lastAccessed": 1775809935413,
+      "accessCount": 5,
+      "lastAccessed": 1775908389632,
+      "type": "directory"
+    },
+    {
+      "path": "AGENTS.md",
+      "accessCount": 4,
+      "lastAccessed": 1775906571107,
       "type": "file"
     },
     {
-      "path": "src/refine/tracer.ts",
-      "accessCount": 1,
-      "lastAccessed": 1775810083415,
+      "path": "src/export/graphml.ts",
+      "accessCount": 4,
+      "lastAccessed": 1775909449898,
       "type": "file"
     },
     {
-      "path": "src/refine/tracer.test.ts",
-      "accessCount": 1,
-      "lastAccessed": 1775810101996,
+      "path": "src/detect/detector.ts",
+      "accessCount": 3,
+      "lastAccessed": 1775903623049,
       "type": "file"
     },
     {
-      "path": "src/refine/diagnostician.ts",
-      "accessCount": 1,
-      "lastAccessed": 1775810137254,
+      "path": "src/export/html.ts",
+      "accessCount": 3,
+      "lastAccessed": 1775909449958,
       "type": "file"
     },
     {
-      "path": "src/wiki/compiler.ts",
-      "accessCount": 1,
-      "lastAccessed": 1775810155051,
+      "path": "tests/integration/mcp-stdio.test.ts",
+      "accessCount": 2,
+      "lastAccessed": 1775896680421,
       "type": "file"
     },
     {
-      "path": "src/refine/diagnostician.test.ts",
+      "path": "src/index.ts",
+      "accessCount": 2,
+      "lastAccessed": 1775902775963,
+      "type": "file"
+    },
+    {
+      "path": "src/graph/cluster.test.ts",
+      "accessCount": 2,
+      "lastAccessed": 1775904095616,
+      "type": "file"
+    },
+    {
+      "path": "src/extract/tree-sitter-compare.ts",
+      "accessCount": 2,
+      "lastAccessed": 1775906551906,
+      "type": "file"
+    },
+    {
+      "path": "tests/archgate/violation-fixture.ts",
+      "accessCount": 2,
+      "lastAccessed": 1775906629408,
+      "type": "file"
+    },
+    {
+      "path": "src/extract/batch-coordinator.ts",
+      "accessCount": 2,
+      "lastAccessed": 1775908807706,
+      "type": "file"
+    },
+    {
+      "path": "src/export/obsidian.ts",
+      "accessCount": 2,
+      "lastAccessed": 1775910100490,
+      "type": "file"
+    },
+    {
+      "path": "docs/adr/ADR-004-ast-embedding-deduplication.md",
       "accessCount": 1,
-      "lastAccessed": 1775810166511,
+      "lastAccessed": 1775902238254,
+      "type": "file"
+    },
+    {
+      "path": "src/extract/llm-extractor.ts",
+      "accessCount": 1,
+      "lastAccessed": 1775902775604,
+      "type": "file"
+    },
+    {
+      "path": "docs/adr/ADR-002-wiki-compiler.md",
+      "accessCount": 1,
+      "lastAccessed": 1775902775987,
+      "type": "file"
+    },
+    {
+      "path": "arch/rules/graph.rules.ts",
+      "accessCount": 1,
+      "lastAccessed": 1775902782687,
+      "type": "file"
+    },
+    {
+      "path": "src/extract",
+      "accessCount": 1,
+      "lastAccessed": 1775904371360,
+      "type": "directory"
+    },
+    {
+      "path": "tests/fixtures/greeter.py",
+      "accessCount": 1,
+      "lastAccessed": 1775904902600,
+      "type": "file"
+    },
+    {
+      "path": "tests/fixtures/greeter.ts",
+      "accessCount": 1,
+      "lastAccessed": 1775904909222,
+      "type": "file"
+    },
+    {
+      "path": "tests/fixtures/greeter.go",
+      "accessCount": 1,
+      "lastAccessed": 1775904915530,
+      "type": "file"
+    },
+    {
+      "path": "tests/fixtures/greeter.java",
+      "accessCount": 1,
+      "lastAccessed": 1775904922213,
+      "type": "file"
+    },
+    {
+      "path": "tests/fixtures/greeter.sh",
+      "accessCount": 1,
+      "lastAccessed": 1775904928558,
+      "type": "file"
+    },
+    {
+      "path": "SKILL-windsurf.md",
+      "accessCount": 1,
+      "lastAccessed": 1775905956746,
+      "type": "file"
+    },
+    {
+      "path": "README.md",
+      "accessCount": 1,
+      "lastAccessed": 1775906571165,
+      "type": "file"
+    },
+    {
+      "path": "scripts/graphwiki-auggie-pretool.mjs",
+      "accessCount": 1,
+      "lastAccessed": 1775906595292,
+      "type": "file"
+    },
+    {
+      "path": ".graphwikiignore",
+      "accessCount": 1,
+      "lastAccessed": 1775906595319,
+      "type": "file"
+    },
+    {
+      "path": ".graphifyignore",
+      "accessCount": 1,
+      "lastAccessed": 1775906595376,
       "type": "file"
     }
   ],

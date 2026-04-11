@@ -9,7 +9,15 @@ import { glob } from 'glob';
 import { resolveIgnores } from './util/ignore-resolver.js';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync } from 'fs';
+import { existsSync, writeFileSync, unlinkSync, readFileSync, mkdirSync } from 'fs';
+import { computeDelta, persistDelta } from './graph/delta.js';
+import { DriftDetector } from './graph/drift.js';
+import { BatchCoordinator } from './extract/batch-coordinator.js';
+import { createRatchet } from './refine/ratchet.js';
+import { createRefinementHistory } from './refine/history.js';
+import { loadHeldOutQueries } from './refine/held-queries.js';
+import type { IncrementalBuildResult, QueryScore } from './types.js';
+import { exportObsidian } from './export/obsidian.js';
 
 // Get package version
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -49,9 +57,11 @@ interface GraphDocument {
 async function loadGraph(graphPath = '.graphwiki/graph.json'): Promise<GraphDocument> {
   try {
     const content = await readFile(graphPath, 'utf-8');
-    return JSON.parse(content);
+    const graph = JSON.parse(content) as GraphDocument;
+    if (!graph.metadata) graph.metadata = {};
+    return graph;
   } catch {
-    return { nodes: [], edges: [] };
+    return { nodes: [], edges: [], metadata: {} };
   }
 }
 
@@ -118,43 +128,190 @@ program
   .option('--resume', 'Resume interrupted build')
   .option('--permissive', 'Allow coerced extraction results')
   .option('--full-cluster', 'Build full cluster')
+  .option('--cluster-only', 'Run clustering only (skip extraction)')
+  .option('--force', 'Force full rebuild (clear cache)')
+  .option('--no-onnx', 'Use rough similarity fallback (skip ONNX model download)')
+  .option('--directed', 'Use directed edge semantics')
+  .option('--mode <mode>', 'Compilation mode: standard or deep', 'standard')
+  .option('--watch', 'Watch for file changes and rebuild incrementally')
   .action(async (path: string, options) => {
+    const startTime = Date.now();
     console.log(`[GraphWiki] Building graph from ${path}`);
     console.log(`[GraphWiki] Options:`, options);
 
-    // Create .graphwiki directory if needed
     const graphwikiDir = '.graphwiki';
-    if (!existsSync(graphwikiDir)) {
-      console.log(`[GraphWiki] Creating ${graphwikiDir}/`);
+    const lockFile = `${graphwikiDir}/.lock`;
+    const GRAPHWIKI_VERSION = VERSION;
+
+    // D1: Lock file management
+    if (existsSync(lockFile)) {
+      try {
+        const lockContent = readFileSync(lockFile, 'utf-8');
+        const lock = JSON.parse(lockContent);
+        // Check if the locking process is still alive
+        try {
+          process.kill(lock.pid, 0);
+          console.error(`[GraphWiki] ERROR: Build already in progress (PID ${lock.pid}). Use --resume or wait for it to complete.`);
+          process.exit(1);
+        } catch {
+          // Process is dead, stale lock — remove it
+          console.log(`[GraphWiki] Removing stale lock file from PID ${lock.pid}`);
+          unlinkSync(lockFile);
+        }
+      } catch {
+        // Corrupted lock file, remove it
+        unlinkSync(lockFile);
+      }
     }
 
-    // Load existing graph
-    const graph = await loadGraph();
+    // Acquire lock
+    mkdirSync(graphwikiDir, { recursive: true });
+    writeFileSync(lockFile, JSON.stringify({ pid: process.pid, timestamp: new Date().toISOString(), version: GRAPHWIKI_VERSION }), 'utf-8');
 
-    // Count source files
-    let fileCount = 0;
-    const [ignorePatterns, _sources] = await resolveIgnores(path);
-    const discovered = await glob("**/*", {
-      cwd: path,
-      ignore: ignorePatterns,
-      absolute: false,
-    });
-    fileCount = discovered.length;
+    try {
+      // Load existing graph
+      const oldGraph = await loadGraph();
 
-    console.log(`[GraphWiki] Found ${fileCount} files`);
-    console.log(`[GraphWiki] Graph has ${graph.nodes.length} nodes, ${graph.edges.length} edges`);
+      // Count source files
+      let fileCount = 0;
+      const [ignorePatterns, _sources] = await resolveIgnores(path);
+      const discovered = await glob("**/*", {
+        cwd: path,
+        ignore: ignorePatterns,
+        absolute: false,
+      });
+      fileCount = discovered.length;
 
-    if (options.update) {
-      console.log('[GraphWiki] Running incremental update...');
+      console.log(`[GraphWiki] Found ${fileCount} files`);
+      console.log(`[GraphWiki] Graph has ${oldGraph.nodes.length} nodes, ${oldGraph.edges.length} edges`);
+
+      let finalGraph = oldGraph;
+      let _incrementalResult: IncrementalBuildResult | null = null;
+
+      // D4: Orphaned-assignment recovery — check for stale subagent assignments on resume
+      const batchDir = `${graphwikiDir}/batch`;
+      if (options.resume) {
+        const coordinator = await BatchCoordinator.readState(batchDir);
+        if (coordinator) {
+          console.log('[GraphWiki] Resuming interrupted build...');
+          console.log(`[GraphWiki] Previous progress: ${coordinator.completed.length}/${coordinator.total_files} files completed`);
+          // Reconstruct coordinator state for continued processing
+          const bc = new BatchCoordinator();
+          // Restore assignments that were in progress
+          for (const [subagentId, files] of coordinator.assigned_files) {
+            const incomplete = files.filter(f => !coordinator.completed.includes(f));
+            if (incomplete.length > 0) {
+              bc.assignFiles(incomplete, subagentId);
+            }
+          }
+        }
+      }
+
+      if (options.force) {
+        console.log('[GraphWiki] Force rebuild — clearing cache...');
+        // Clear manifest
+        const manifestPath = `${graphwikiDir}/manifest.json`;
+        if (existsSync(manifestPath)) {
+          unlinkSync(manifestPath);
+        }
+        // Clear batch state
+        if (existsSync(`${batchDir}/batch-state.json`)) {
+          unlinkSync(`${batchDir}/batch-state.json`);
+        }
+      }
+
+      if (options.update) {
+        console.log('[GraphWiki] Running incremental update...');
+        // D3: DriftLog output wiring — wire DriftDetector to graphwiki-out/drift.log
+        // Note: driftDetector is instantiated here so its constructor creates the log dir.
+        // In Phase A, it will be used directly for community drift detection.
+        const _driftDetector = new DriftDetector({
+          drift_threshold: 0.1,
+          max_scoped_runs: 100,
+          logPath: 'graphwiki-out/drift.log',
+        });
+
+        // Placeholder: in Phase A this would call the real extraction pipeline
+        // For now, compute delta against the loaded graph
+        const newGraph = oldGraph; // In real implementation, newGraph would come from extraction
+        if (oldGraph.nodes.length > 0) {
+          const delta = computeDelta(oldGraph, newGraph);
+          persistDelta(delta, 'graphwiki-out/deltas');
+          console.log(`[GraphWiki] Delta: ${delta.added.nodes.length} added, ${delta.removed.nodes.length} removed, ${delta.modified.length} modified`);
+          console.log(`[GraphWiki] DriftDetector initialized (run count: ${_driftDetector.getRunCount()})`);
+        }
+      }
+
+      // Simulate build completion
+      console.log('[GraphWiki] Build complete!');
+      console.log(`[GraphWiki] Graph now has ${finalGraph.nodes.length} nodes, ${finalGraph.edges.length} edges`);
+
+      const durationMs = Date.now() - startTime;
+      _incrementalResult = {
+        addedNodes: finalGraph.nodes.filter(n => !oldGraph.nodes.find(o => o.id === n.id)),
+        removedNodes: oldGraph.nodes.filter(n => !finalGraph.nodes.find(f => f.id === n.id)).map(n => n.id),
+        modifiedNodes: finalGraph.nodes.filter(n => {
+          const old = oldGraph.nodes.find(o => o.id === n.id);
+          return old && (old.label !== n.label || old.type !== n.type);
+        }),
+        unchangedNodes: finalGraph.nodes.filter(n => oldGraph.nodes.find(o => o.id === n.id && o.label === n.label && o.type === n.type)).map(n => n.id),
+        totalNodes: finalGraph.nodes.length,
+        totalEdges: finalGraph.edges.length,
+        buildDurationMs: durationMs,
+      };
+      console.log(`[GraphWiki] Build took ${durationMs}ms`);
+      if (_incrementalResult) {
+        console.log(`[GraphWiki] Incremental result: ${_incrementalResult.addedNodes.length} added, ${_incrementalResult.removedNodes.length} removed`);
+      }
+
+      // Save final state
+      if (options.directed) {
+        finalGraph.metadata = { ...finalGraph.metadata, directed: true };
+      }
+      await saveGraph(finalGraph);
+
+      // D4: Atomic write — write batch state using temp+rename pattern
+      const bc = new BatchCoordinator();
+      await bc.writeState(batchDir);
+
+      // Watch mode: start file watcher and run incremental updates on changes
+      if (options.watch) {
+        const { FileWatcher } = await import('./watch/file-watcher.js');
+        const watcher = new FileWatcher({
+          path,
+          graphPath: '.graphwiki/graph.json',
+          onUpdate: async ({ added, modified, removed }) => {
+            console.log(`[GraphWiki] Files changed: +${added.length} ~${modified.length} -${removed.length}`);
+            const newGraph = oldGraph; // In real impl, re-run extraction for these files
+            if (oldGraph.nodes.length > 0) {
+              const delta = computeDelta(oldGraph, newGraph);
+              persistDelta(delta, 'graphwiki-out/deltas');
+              console.log(`[GraphWiki] Delta: ${delta.added.nodes.length} added, ${delta.removed.nodes.length} removed`);
+            }
+          },
+          onError: (err) => {
+            console.error('[GraphWiki] Watch error:', err.message);
+          },
+        });
+
+        await watcher.start();
+
+        // Keep process alive until interrupted
+        await new Promise<void>((resolve) => {
+          process.on('SIGINT', async () => {
+            console.log('\n[GraphWiki] Stopping watcher...');
+            await watcher.stop();
+            resolve();
+          });
+        });
+      }
+
+    } finally {
+      // Release lock
+      if (existsSync(lockFile)) {
+        unlinkSync(lockFile);
+      }
     }
-
-    if (options.resume) {
-      console.log('[GraphWiki] Resuming interrupted build...');
-    }
-
-    // Simulate build
-    console.log('[GraphWiki] Build complete!');
-    console.log(`[GraphWiki] Graph now has ${graph.nodes.length} nodes, ${graph.edges.length} edges`);
   });
 
 // Query command
@@ -214,29 +371,69 @@ program
 // Ingest command
 program
   .command('ingest')
-  .description('Ingest a new source file into the graph')
-  .argument('<source>', 'Source file path')
-  .action(async (source: string) => {
+  .description('Ingest a new source file, URL, or video into the graph')
+  .argument('<source>', 'Source file path or URL')
+  .option('--transcribe', 'Transcribe audio/video content using Whisper')
+  .option('--title <title>', 'Title for the ingested content')
+  .action(async (source: string, options) => {
     console.log(`[GraphWiki] Ingesting: ${source}`);
 
     try {
-      const content = await readFile(source, 'utf-8');
-      console.log(`[GraphWiki] Read ${content.length} bytes from ${source}`);
-
-      // Load graph
       const graph = await loadGraph();
+      let nodeLabel = source.split('/').pop() || source;
+      let nodeType = 'source';
+      let provenance = [source];
+      let properties: Record<string, unknown> = {};
 
-      // Create node for this source
-      const nodeId = `source:${source}`;
+      // Detect if it's a URL
+      if (source.startsWith('http://') || source.startsWith('https://')) {
+        // Video URL with --transcribe: download audio and transcribe
+        if (options.transcribe) {
+          const { ingestVideo } = await import('./extract/video-ingester.js');
+          const result = await ingestVideo(source, options.title);
+          nodeLabel = (options.title || source.split('/').pop() || 'video');
+          nodeType = 'video';
+          provenance = [source];
+          properties = { transcript: result.transcript, language: result.language, duration: result.duration, url: source };
+          console.log(`[GraphWiki] Transcribed video: ${result.transcript.length} chars`);
+        } else {
+          const { ingestUrl } = await import('./extract/url-ingester.js');
+          const { content, metadata } = await ingestUrl(source);
+          nodeLabel = (options.title || metadata.title as string || nodeLabel);
+          nodeType = 'url';
+          provenance = [source];
+          properties = { text: content.substring(0, 5000), title: metadata.title, url: source };
+          console.log(`[GraphWiki] Fetched URL: ${content.length} chars`);
+        }
+      }
+      // Detect if it's a video file
+      else if (/\.(mp4|webm|mov|avi|mkv)$/i.test(source) && options.transcribe) {
+        const { ingestVideoFile } = await import('./extract/video-ingester.js');
+        const result = await ingestVideoFile(source);
+        nodeLabel = (options.title || nodeLabel);
+        nodeType = 'video';
+        provenance = [source];
+        properties = { transcript: result.transcript, language: result.language, duration: result.duration };
+        console.log(`[GraphWiki] Transcribed video: ${result.transcript.length} chars`);
+      }
+      // Regular file
+      else {
+        const content = await readFile(source, 'utf-8');
+        console.log(`[GraphWiki] Read ${content.length} bytes from ${source}`);
+        properties = { text: content.substring(0, 5000) };
+      }
+
+      // Create node
+      const nodeId = `${nodeType}:${source}`;
       const node = {
         id: nodeId,
-        label: source.split('/').pop() || source,
-        type: 'source',
+        label: nodeLabel,
+        type: nodeType,
         source_file: source,
-        provenance: [source],
+        provenance,
+        properties,
       };
 
-      // Check if already exists
       const existing = graph.nodes.findIndex(n => n.id === nodeId);
       if (existing >= 0) {
         graph.nodes[existing] = node;
@@ -244,10 +441,8 @@ program
         graph.nodes.push(node);
       }
 
-      // Save updated graph
       await saveGraph(graph);
-
-      console.log(`[GraphWiki] Ingested: ${node.label}`);
+      console.log(`[GraphWiki] Ingested: ${nodeLabel}`);
       console.log(`[GraphWiki] Graph now has ${graph.nodes.length} nodes`);
     } catch (err) {
       console.error(`[GraphWiki] Error: ${err}`);
@@ -423,23 +618,164 @@ program
   .option('--review', 'Show refinement suggestions without applying')
   .option('--rollback', 'Revert to previous prompt version')
   .option('--force', 'Force refinement even if validation fails')
+  .option('--validate', 'Validate refinement scores against held-out queries')
   .action(async (options) => {
     console.log('[GraphWiki] Refinement system');
     console.log(`[GraphWiki] Options:`, options);
 
+    const historyPath = '.graphwiki/refinement/history.jsonl';
+    const history = createRefinementHistory(historyPath);
+    const ratchet = createRatchet();
+
+    if (options.validate) {
+      console.log('[GraphWiki] Validating against held-out queries...');
+
+      const heldOutQueries = await loadHeldOutQueries();
+
+      if (heldOutQueries.length === 0) {
+        console.log('[GraphWiki] No held-out queries found. Run with --review first.');
+        return;
+      }
+
+      // Get history for validation
+      const allHistory = await history.getHistory();
+
+      if (allHistory.length < 2) {
+        console.log('[GraphWiki] Need at least 2 history entries to validate.');
+        return;
+      }
+
+      // Use last two entries for validation
+      // TODO: Wire WeakNodeDiagnostic[] -> QueryScore[] mapping when refine pipeline is complete
+      const tuningScores: QueryScore[] = allHistory[allHistory.length - 2]!.diagnostics.map(d => ({
+        query: d.nodeId,
+        confidence: d.estimatedImpact,
+        efficiency: 0.5,
+        tier: 2,
+        tokens: 0,
+      }));
+
+      const validationScores: QueryScore[] = allHistory[allHistory.length - 1]!.diagnostics.map(d => ({
+        query: d.nodeId,
+        confidence: d.estimatedImpact,
+        efficiency: 0.5,
+        tier: 2,
+        tokens: 0,
+      }));
+
+      const result = ratchet.validate(tuningScores, validationScores);
+
+      console.log(`[GraphWiki] Validation: ${result.passed ? 'PASSED' : 'FAILED'}`);
+      console.log(`[GraphWiki] Composite Score: ${result.compositeScore.toFixed(3)}`);
+      console.log(`[GraphWiki] Change: ${result.details.change >= 0 ? '+' : ''}${result.details.change.toFixed(3)}`);
+      console.log(`[GraphWiki] Threshold: ${result.details.threshold}`);
+      return;
+    }
+
     if (options.rollback) {
       console.log('[GraphWiki] Rolling back to previous version...');
-      console.log('[GraphWiki] (Rollback not yet implemented)');
+      const latestVersion = await history.getLatestVersion();
+
+      if (!latestVersion) {
+        console.log('[GraphWiki] No history found to rollback.');
+        return;
+      }
+
+      // Find previous version
+      const allHistory = await history.getHistory();
+      if (allHistory.length < 2) {
+        console.log('[GraphWiki] No previous version to rollback to.');
+        return;
+      }
+
+      const previousVersion = allHistory[allHistory.length - 2]!.version;
+      console.log(`[GraphWiki] Rolling back from ${latestVersion} to ${previousVersion}...`);
+
+      await history.rollback(previousVersion);
+      console.log('[GraphWiki] Rollback complete.');
       return;
     }
 
     if (options.review) {
       console.log('[GraphWiki] Showing refinement suggestions...');
+      const audit = await history.auditTrail();
+      if (audit.length === 0) {
+        console.log('[GraphWiki] No refinement history found.');
+        return;
+      }
+      console.log('\n=== Refinement Audit Trail ===');
+      for (const entry of audit) {
+        console.log(`[${entry.timestamp}] ${entry.promptVersion}: score=${entry.score}`);
+      }
     } else {
       console.log('[GraphWiki] Running refinement...');
+      console.log('[GraphWiki] (Refinement requires LLM provider configuration)');
+    }
+  });
+
+// Rollback command — D2: restore previous graph from graphwiki-out/deltas/
+program
+  .command('rollback')
+  .description('Restore previous graph from delta backups')
+  .argument('[delta-file]', 'Specific delta file to restore (default: most recent)')
+  .option('--list', 'List available delta files without restoring')
+  .action(async (deltaFile: string | undefined, options) => {
+    const deltasDir = 'graphwiki-out/deltas';
+    const graphPath = '.graphwiki/graph.json';
+
+    if (options.list) {
+      console.log('[GraphWiki] Available delta files:');
+      console.log('[GraphWiki] (Use --list to see available snapshots)');
+      return;
     }
 
-    console.log('[GraphWiki] (Refinement requires LLM provider configuration)');
+    if (!deltaFile) {
+      console.error('[GraphWiki] ERROR: Please specify a delta file to restore. Use --list to see available files.');
+      process.exit(1);
+    }
+
+    const deltaPath = deltaFile.startsWith('/') || deltaFile.startsWith('.')
+      ? deltaFile
+      : `${deltasDir}/${deltaFile}`;
+
+    if (!existsSync(deltaPath)) {
+      console.error(`[GraphWiki] ERROR: Delta file not found: ${deltaPath}`);
+      process.exit(1);
+    }
+
+    console.log(`[GraphWiki] Restoring from delta: ${deltaPath}`);
+
+    try {
+      const deltaContent = readFileSync(deltaPath, 'utf-8');
+      const delta = JSON.parse(deltaContent);
+
+      const currentGraph = await loadGraph();
+
+      const restoredGraph = {
+        ...currentGraph,
+        nodes: [
+          ...currentGraph.nodes.filter(n => !delta.removed?.nodes?.find((r: { id: string }) => r.id === n.id)),
+          ...(delta.removed?.nodes || []),
+        ].filter((n, i, arr) => arr.findIndex((a: { id: string }) => a.id === n.id) === i),
+        edges: [
+          ...currentGraph.edges.filter(e => !delta.removed?.edges?.find((r: { id: string }) => r.id === e.id)),
+          ...(delta.removed?.edges || []),
+        ].filter((e, i, arr) => arr.findIndex((a: { id: string }) => a.id === e.id) === i),
+      };
+
+      const backupPath = `.graphwiki/graph.json.backup-${Date.now()}`;
+      await writeFile(backupPath, JSON.stringify(currentGraph, null, 2), 'utf-8');
+      console.log(`[GraphWiki] Backed up current graph to: ${backupPath}`);
+
+      await saveGraph(restoredGraph, graphPath);
+
+      console.log(`[GraphWiki] Restored graph: ${restoredGraph.nodes.length} nodes, ${restoredGraph.edges.length} edges`);
+      console.log('[GraphWiki] Rollback complete!');
+
+    } catch (err) {
+      console.error(`[GraphWiki] Rollback failed: ${err}`);
+      process.exit(1);
+    }
   });
 
 // Serve command
@@ -546,7 +882,7 @@ skill
 program
   .command('export')
   .description('Export graph to various formats')
-  .argument('<format>', 'Export format: html, obsidian, neo4j, graphml')
+  .argument('<format>', 'Export format: html, obsidian, neo4j, graphml, svg')
   .option('--output <dir>', 'Output directory', 'graphwiki-out/exports')
   .action(async (format: string, options) => {
     console.log(`[GraphWiki] Exporting to ${format}...`);
@@ -558,24 +894,137 @@ program
     console.log(`[GraphWiki] Output directory: ${outputDir}`);
 
     switch (format) {
-      case 'html':
-        console.log('[GraphWiki] Exporting HTML (vis.js)...');
+      case 'html': {
+        const { exportGraphHtml } = await import('./export/html.js');
+        const outPath = await exportGraphHtml(graph, outputDir);
+        console.log(`[GraphWiki] Exported HTML: ${outPath}`);
         break;
-      case 'obsidian':
-        console.log('[GraphWiki] Exporting Obsidian vault...');
+      }
+      case 'obsidian': {
+        await exportObsidian(graph, join(outputDir, 'obsidian'));
+        console.log(`[GraphWiki] Exported Obsidian vault to ${outputDir}/obsidian`);
         break;
-      case 'neo4j':
-        console.log('[GraphWiki] Exporting Neo4j Cypher...');
+      }
+      case 'neo4j': {
+        const { exportToNeo4j } = await import('./export/neo4j.js');
+        const outPath = await exportToNeo4j(graph, outputDir);
+        console.log(`[GraphWiki] Exported Neo4j Cypher: ${outPath}`);
         break;
-      case 'graphml':
-        console.log('[GraphWiki] Exporting GraphML...');
+      }
+      case 'graphml': {
+        const { exportToGraphML } = await import('./export/graphml.js');
+        const outPath = await exportToGraphML(graph, outputDir);
+        console.log(`[GraphWiki] Exported GraphML: ${outPath}`);
         break;
+      }
+      case 'svg': {
+        const { exportToSvg } = await import('./export/svg.js');
+        const outPath = await exportToSvg(graph, outputDir);
+        console.log(`[GraphWiki] Exported SVG: ${outPath}`);
+        break;
+      }
       default:
         console.error(`[GraphWiki] Unknown format: ${format}`);
+        console.error(`[GraphWiki] Available formats: html, obsidian, neo4j, graphml, svg`);
         process.exit(1);
     }
 
     console.log('[GraphWiki] Export complete!');
+  });
+
+// ============================================================
+// Push command (Neo4j direct push)
+// ============================================================
+
+program
+  .command('push <target>')
+  .description('Push graph to external services')
+  .argument('<target>', 'Push target: neo4j')
+  .option('--uri <uri>', 'Neo4j URI (e.g., neo4j://localhost:7687)')
+  .option('--user <user>', 'Neo4j username', 'neo4j')
+  .option('--password <password>', 'Neo4j password')
+  .option('--database <db>', 'Neo4j database', 'neo4j')
+  .action(async (target: string, options) => {
+    if (target !== 'neo4j') {
+      console.error(`[GraphWiki] Unknown push target: ${target}`);
+      process.exit(1);
+    }
+
+    const uri = options.uri || process.env.NEO4J_URI;
+    const user = options.user || process.env.NEO4J_USER || 'neo4j';
+    const password = options.password || process.env.NEO4J_PASSWORD;
+    const database = options.database || 'neo4j';
+
+    if (!uri || !password) {
+      console.error('[GraphWiki] Error: --uri and --password (or NEO4J_URI/NEO4J_PASSWORD env vars) are required');
+      process.exit(1);
+    }
+
+    console.log('[GraphWiki] Loading graph...');
+    const graph = await loadGraph();
+    console.log(`[GraphWiki] Graph has ${graph.nodes.length} nodes, ${graph.edges.length} edges`);
+
+    console.log('[GraphWiki] Connecting to Neo4j...');
+    const neo4j = await import('neo4j-driver');
+    const driver = neo4j.default.driver(uri, neo4j.default.auth.basic(user, password));
+
+    try {
+      await driver.verifyConnectivity();
+      console.log('[GraphWiki] Connected to Neo4j');
+    } catch (err) {
+      console.error('[GraphWiki] Neo4j connection failed:', err);
+      process.exit(1);
+    }
+
+    const session = driver.session({ database });
+    try {
+      console.log('[GraphWiki] Importing nodes...');
+      for (const node of graph.nodes) {
+        const props: Record<string, unknown> = {
+          id: node.id,
+          label: node.label || node.id,
+        };
+        if (node.type) props.type = node.type;
+        if (node.community !== undefined) props.community = node.community;
+        if (node.source_file) props.source_file = node.source_file;
+        if (node.provenance) props.provenance = JSON.stringify(node.provenance);
+        if (node.properties) Object.assign(props, node.properties);
+
+        const labels = node.type ? [`GraphNode`, node.type] : ['GraphNode'];
+        const labelStr = labels.map((l) => `:${l}`).join('');
+
+        const propKeys = Object.keys(props);
+        const propValues = propKeys.map((k) => `node.${k} = $${k}`).join(', ');
+        const params: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(props)) {
+          params[k] = v;
+        }
+
+        await session.run(
+          `MERGE (n ${labelStr} {id: $id}) SET ${propValues}`,
+          params
+        );
+      }
+
+      console.log('[GraphWiki] Importing relationships...');
+      for (const edge of graph.edges) {
+        const relType = (edge.label || 'RELATES_TO').toUpperCase().replace(/\s+/g, '_');
+        await session.run(
+          `MATCH (a {id: $source}), (b {id: $target}) MERGE (a)-[r:${relType}]->(b) SET r.id = $id, r.weight = $weight`,
+          { source: edge.source, target: edge.target, id: edge.id, weight: edge.weight }
+        );
+      }
+
+      console.log('[GraphWiki] Creating indexes...');
+      await session.run('CREATE INDEX node_id_index IF NOT EXISTS FOR (n:GraphNode) ON (n.id)');
+      await session.run('CREATE INDEX node_type_index IF NOT EXISTS FOR (n:GraphNode) ON (n.type)');
+      await session.run('CREATE INDEX node_community_index IF NOT EXISTS FOR (n:GraphNode) ON (n.community)');
+
+      console.log('[GraphWiki] Push complete!');
+    } finally {
+      await session.close();
+      await driver.close();
+    }
   });
 
 // ============================================================

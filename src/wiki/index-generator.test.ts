@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { IndexGenerator } from './index-generator.js';
-import type { GraphDocument, WikiPage } from './types.js';
+import type { GraphDocument } from '../types.js';
+import type { WikiPage } from './types.js';
 
 describe('IndexGenerator', () => {
   describe('generate', () => {
