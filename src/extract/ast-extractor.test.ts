@@ -1,5 +1,22 @@
 import { describe, it, expect } from "vitest";
-import { ASTExtractor } from "./ast-extractor.js";
+import { ASTExtractor, TreeSitterFactory } from "./ast-extractor.js";
+
+describe("TreeSitterFactory", () => {
+  it("defaults to wasm backend", () => {
+    const factory = new TreeSitterFactory();
+    expect(factory.getBackend()).toBe("wasm");
+  });
+
+  it("respects explicit wasm backend option", () => {
+    const factory = new TreeSitterFactory({ backend: "wasm" });
+    expect(factory.getBackend()).toBe("wasm");
+  });
+
+  it("respects explicit native backend option", () => {
+    const factory = new TreeSitterFactory({ backend: "native" });
+    expect(factory.getBackend()).toBe("native");
+  });
+});
 
 describe("ASTExtractor", () => {
   const extractor = new ASTExtractor();
@@ -48,7 +65,7 @@ def outer():
 `;
       const result = await extractor.extract(code, "python", "nested.py");
       for (const edge of result.edges) {
-        expect((edge as Record<string, unknown>).confidence_level).toBe("EXTRACTED");
+        expect((edge as unknown as Record<string, unknown>).confidence_level).toBe("EXTRACTED");
       }
     });
 

@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { WikiLinter } from './linter.js';
 import type { GraphDocument } from '../types.js';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { mkdirSync, writeFileSync, rmSync } from 'fs';
+import { mkdirSync, writeFileSync } from 'fs';
 
 describe('WikiLinter', () => {
   const tempDir = join(tmpdir(), 'graphwiki-linter-test-' + Date.now());
@@ -41,8 +41,8 @@ describe('WikiLinter', () => {
       const contradictions = linter.detectContradictions(pages);
 
       expect(contradictions.length).toBeGreaterThan(0);
-      expect(contradictions[0].node_id).toBe('n1');
-      expect(contradictions[0].edge_label).toBe('contradicts');
+      expect(contradictions[0]?.node_id).toBe('n1');
+      expect(contradictions[0]?.edge_label).toBe('contradicts');
     });
 
     it('should return empty when no contradictions exist', () => {

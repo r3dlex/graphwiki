@@ -34,8 +34,9 @@ export class AnthropicProvider implements LLMProvider {
       })),
     });
 
+    const textBlock = response.content[0];
     return {
-      content: response.content[0].type === 'text' ? response.content[0].text : '',
+      content: textBlock?.type === 'text' ? textBlock.text : '',
       usage: {
         input_tokens: response.usage.input_tokens,
         output_tokens: response.usage.output_tokens,
@@ -78,7 +79,7 @@ export class AnthropicProvider implements LLMProvider {
               type: 'document',
               source: {
                 type: 'base64',
-                media_type: mediaType,
+                media_type: mediaType as unknown as 'application/pdf',
                 data: base64Content,
               },
             },
@@ -91,7 +92,8 @@ export class AnthropicProvider implements LLMProvider {
       ],
     });
 
-    return response.content[0].type === 'text' ? response.content[0].text : '';
+    const textBlock = response.content[0];
+    return textBlock?.type === 'text' ? textBlock.text : '';
   }
 
   async extractFromImage(content: Buffer, prompt: string): Promise<string> {
@@ -121,7 +123,8 @@ export class AnthropicProvider implements LLMProvider {
       ],
     });
 
-    return response.content[0].type === 'text' ? response.content[0].text : '';
+    const textBlock = response.content[0];
+    return textBlock?.type === 'text' ? textBlock.text : '';
   }
 
   private getMediaType(format: string): string {

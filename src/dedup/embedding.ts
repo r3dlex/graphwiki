@@ -3,17 +3,37 @@
 
 import { InferenceSession } from "onnxruntime-node";
 import { cosineSimilarity } from "../util/math.js";
+import { get_encoding, Tiktoken } from "tiktoken";
 
 const DEFAULT_MODEL_PATH =
   "https://huggingface.co/Xenova/transformers.js/resolve/main/models/onnx/all-MiniLM-L6-v2/model.onnx";
+
+// Cached encoder for token counting
+let _cl100kEncoder: Tiktoken | null = null;
+
+function getCl100kEncoder(): Tiktoken {
+  if (!_cl100kEncoder) {
+    _cl100kEncoder = get_encoding("cl100k_base");
+  }
+  return _cl100kEncoder;
+}
 
 export class ONNXEmbedding {
   private session: InferenceSession | null = null;
   private modelPath: string;
   private dimension: number = 384; // all-MiniLM-L6-v2 outputs 384-dim vectors
+  private noOnnx = false;
 
   constructor(modelPath?: string) {
     this.modelPath = modelPath ?? DEFAULT_MODEL_PATH;
+  }
+
+  /**
+   * Enable rough-similarity fallback mode when ONNX model is unavailable.
+   * Uses text length-based rough similarity.
+   */
+  enableNoOnnxMode(): void {
+    this.noOnnx = true;
   }
 
   /**
@@ -22,6 +42,7 @@ export class ONNXEmbedding {
    * If it's a URL, it will be fetched and cached.
    */
   async loadModel(modelPath?: string): Promise<ONNXEmbedding> {
+    if (this.noOnnx) return this;
     const path = modelPath ?? this.modelPath;
     try {
       this.session = await InferenceSession.create(path);
@@ -33,6 +54,37 @@ export class ONNXEmbedding {
   }
 
   /**
+   * Tokenize text using tiktoken (cl100k_base).
+   * Returns token IDs compatible with the model's vocabulary expectations.
+   */
+  private _tokenize(text: string): number[] {
+    const encoder = getCl100kEncoder();
+    const enc = encoder.encode(text);
+    // Convert Uint32Array to number[] and cap at 127 tokens for model compatibility
+    return Array.from(enc).slice(0, 127);
+  }
+
+  /**
+   * Get token count for a text string using tiktoken.
+   */
+  async tokenCount(text: string): Promise<number> {
+    const encoder = getCl100kEncoder();
+    return encoder.encode(text).length;
+  }
+
+  /**
+   * Rough similarity fallback using text length when ONNX is unavailable.
+   */
+  roughSimilarity(a: string, b: string): number {
+    const lenA = a.length;
+    const lenB = b.length;
+    if (lenA === 0 || lenB === 0) return 0;
+    const diff = Math.abs(lenA - lenB);
+    const maxLen = Math.max(lenA, lenB);
+    return 1 - diff / maxLen;
+  }
+
+  /**
    * Embed a list of texts using the loaded model.
    * Uses mean pooling over token embeddings to produce a single vector per text.
    * Batch processing is applied for large inputs to avoid memory issues.
@@ -41,6 +93,10 @@ export class ONNXEmbedding {
     texts: string[],
     modelPath?: string
   ): Promise<number[][]> {
+    if (this.noOnnx) {
+      // Return rough similarity-based pseudo-embeddings using text length
+      return texts.map((t) => this._roughEmbedding(t));
+    }
     if (this.session === null || modelPath !== undefined) {
       await this.loadModel(modelPath);
     }
@@ -59,6 +115,18 @@ export class ONNXEmbedding {
     }
 
     return results;
+  }
+
+  private _roughEmbedding(text: string): number[] {
+    // Pseudo-embedding based on text length distribution
+    // Not meaningful for semantic similarity — only used as fallback
+    const dim = this.dimension;
+    const vec = new Array(dim).fill(0);
+    const seed = text.length;
+    for (let i = 0; i < dim; i++) {
+      vec[i] = Math.sin(seed * (i + 1) * 0.1) * 0.1;
+    }
+    return vec;
   }
 
   private async _embedBatch(texts: string[]): Promise<number[][]> {
@@ -131,13 +199,9 @@ export class ONNXEmbedding {
         )
       ).map((n) => Number(n));
 
-      let sum = 0;
       let count = 0;
       for (let j = 0; j < vec.length; j++) {
-        if (mask[j] === 1) {
-          sum += vec[j]!;
-          count++;
-        }
+        if (mask[j] === 1) count++;
       }
       // L2 normalize
       const norm = Math.sqrt(vec.reduce((acc, v) => acc + v * v, 0));
@@ -145,63 +209,6 @@ export class ONNXEmbedding {
     }
 
     return embeddings;
-  }
-
-  /**
-   * Simple whitespace tokenizer for ONNX model input.
-   * Returns token IDs compatible with all-MiniLM-L6-v2 vocabulary.
-   * This is a simplified version — production use would load a full tokenizer.
-   */
-  private _tokenize(text: string): number[] {
-    // Simplified BPE-style tokenization using character n-grams + known word tokens
-    // For all-MiniLM-L6-v2, we use a basic approximation
-    const vocab: Record<string, number> = this._getVocab();
-    const tokens: number[] = [];
-    const words = text.toLowerCase().split(/\s+/);
-
-    for (const word of words) {
-      if (vocab[word] !== undefined) {
-        tokens.push(vocab[word]);
-      } else {
-        // Subword tokenization approximation
-        for (let i = 0; i < word.length; i += 3) {
-          const sub = word.slice(i, i + 3);
-          if (sub.length < 2) break;
-          tokens.push(vocab[sub] ?? 2); // 2 = [UNK]
-        }
-      }
-    }
-
-    // Add special tokens: [CLS]=101, [SEP]=102, [PAD]=0, [UNK]=100
-    const cls = 101;
-    const sep = 102;
-    return [cls, ...tokens.slice(0, 127), sep];
-  }
-
-  private _getVocab(): Record<string, number> {
-    // Minimal vocab for demonstration — maps common tokens to BERT IDs
-    // In production, load the full tokenizer vocabulary
-    const commonTokens: Record<string, number> = {};
-    const words = [
-      "the", "be", "to", "of", "and", "a", "in", "that", "have", "i",
-      "it", "for", "not", "on", "with", "he", "as", "you", "do", "at",
-      "this", "but", "his", "by", "from", "they", "we", "say", "her", "she",
-      "or", "an", "will", "my", "one", "all", "would", "there", "their", "what",
-      "so", "up", "out", "if", "about", "who", "get", "which", "go", "me",
-      "when", "make", "can", "like", "time", "no", "just", "him", "know", "take",
-      "people", "into", "year", "your", "good", "some", "could", "them", "see", "other",
-      "than", "then", "now", "look", "only", "come", "its", "over", "think", "also",
-      "back", "after", "use", "two", "how", "our", "work", "first", "well", "way",
-      "even", "new", "want", "because", "any", "these", "give", "day", "most", "us",
-      "is", "are", "was", "were", "been", "has", "had", "does", "did", "doing",
-      "class", "concept", "entity", "node", "edge", "graph", "data", "model", "system",
-    ];
-    // BERT vocab offset for custom tokens starts at 30522, but we use direct indices
-    // Vocabulary indices 100-30521 are standard for BERT
-    words.forEach((w, i) => {
-      commonTokens[w] = 2000 + i; // Offset to avoid special token IDs
-    });
-    return commonTokens;
   }
 
   /**

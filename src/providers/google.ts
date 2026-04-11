@@ -1,5 +1,6 @@
 // Google provider for GraphWiki v2
 
+// @ts-ignore
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { Message, CompletionOptions, CompletionResult } from '../types.js';
 import type { LLMProvider } from './provider.js';
@@ -38,7 +39,7 @@ export class GoogleProvider implements LLMProvider {
       systemInstruction: options.system ? [{ text: options.system }] : undefined,
     });
 
-    const usage = await response.raw?.promptFeedback;
+    // Usage data available via response.raw?.promptFeedback if needed later
     const text = response.response.text();
 
     return {

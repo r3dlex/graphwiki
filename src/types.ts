@@ -19,15 +19,18 @@ export interface GraphEdge {
   weight: number;
   label?: string;
   provenance?: string[];
+  directed?: boolean;
 }
 
 export interface GraphDocument {
+  id?: string;
   nodes: GraphNode[];
   edges: GraphEdge[];
   metadata?: {
     completeness?: number;
     source?: string;
     generated_at?: string;
+    directed?: boolean;
     [key: string]: unknown;
   };
 }
@@ -46,10 +49,11 @@ export interface DeduplicationConfig {
   compatible_types?: string[][];
 }
 
+
 export interface DriftLogEntry {
   timestamp: string;
   drifted_nodes: string[];
-  new_communities: Map<string, number>;
+  new_communities: Record<string, number>;
   affected_by_change: Set<string>;
 }
 
@@ -127,6 +131,19 @@ export interface BenchmarkReport {
   total_tokens: number;
   avg_tokens_per_query: number;
   winner: string;
+}
+
+export interface HeldOutQuery {
+  id: string;
+  query: string;
+  expected_topics: string[];
+  difficulty: 'easy' | 'medium' | 'hard';
+}
+
+export interface HeldOutQuerySet {
+  description: string;
+  version: string;
+  queries: HeldOutQuery[];
 }
 
 // === Refinement types ===
@@ -244,6 +261,7 @@ export interface ToolContext {
   };
   wikiPath?: string;
   corpusPath?: string;
+  wikiPages?: Array<{ title: string; content: string }>;
 }
 
 // === CLI types ===
@@ -255,11 +273,26 @@ export interface CLIOptions {
   fullCluster?: boolean;
   http?: boolean;
   port?: number;
-  platform?: 'claude' | 'codex' | 'gemini' | 'cursor' | 'openclaw';
+  platform?: 'claude' | 'codex' | 'opencode' | 'cursor' | 'gemini-cli' | 'copilot-cli' | 'aider' | 'openclaw' | 'factory-droid' | 'trae';
   fix?: boolean;
   review?: boolean;
   rollback?: boolean;
   force?: boolean;
+  // Graph v3 new flags
+  directed?: boolean;
+  watch?: boolean;
+  transcribe?: boolean;
+  mode?: 'standard' | 'deep';
+  clusterOnly?: boolean;
+  ingestUrl?: string;
+  ingestVideo?: string;
+  export?: 'svg' | 'json' | 'graphml';
+  zoom?: number;
+  pushNeo4j?: boolean;
+  neo4jUri?: string;
+  neo4jUser?: string;
+  neo4jPassword?: string;
+  parser?: 'wasm' | 'native';
 }
 
 // === Lock file types ===
@@ -433,4 +466,14 @@ export interface Tokenizer {
   encode(text: string): Promise<number[]>;
   decode(tokens: number[]): Promise<string>;
   tokenCount(text: string): Promise<number>;
+}
+
+export interface IncrementalBuildResult {
+  addedNodes: GraphNode[];
+  removedNodes: string[];
+  modifiedNodes: GraphNode[];
+  unchangedNodes: string[];
+  totalNodes: number;
+  totalEdges: number;
+  buildDurationMs: number;
 }

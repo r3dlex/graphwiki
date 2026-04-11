@@ -1,7 +1,7 @@
 // GraphWiki v2 Skill Generator
 // Parses SKILL.md and generates platform-specific SKILL-*.md files
 
-import { readFile, writeFile, access } from 'fs/promises';
+import { readFile, writeFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -30,13 +30,13 @@ interface ParsedSkill {
 // YAML Frontmatter Parser
 // ============================================================
 
-function parseFrontmatter(content: string): Frontmatter {
+export function parseFrontmatter(content: string): Frontmatter {
   const match = content.match(/^---\n([\s\S]*?)\n---\n/);
   if (!match) {
     throw new Error('Missing YAML frontmatter');
   }
 
-  const yaml = match[1];
+  const yaml = match[1] ?? '';
   const result: Record<string, unknown> = {};
 
   for (const line of yaml.split('\n')) {
@@ -50,21 +50,26 @@ function parseFrontmatter(content: string): Frontmatter {
       // Parse array: [claude, codex, gemini]
       const arrayMatch = value.match(/\[(.*)\]/);
       if (arrayMatch) {
-        result[key] = arrayMatch[1].split(',').map(s => s.trim());
+        result[key] = (arrayMatch[1] ?? '').split(',').map(s => s.trim());
       }
     } else {
       result[key] = value;
     }
   }
 
-  return result as Frontmatter;
+  const frontmatter: Frontmatter = { name: '', version: '', description: '', platforms: [] };
+  frontmatter.name = result['name'] as string ?? '';
+  frontmatter.version = result['version'] as string ?? '';
+  frontmatter.description = result['description'] as string ?? '';
+  frontmatter.platforms = (result['platforms'] as string[] | undefined) ?? [];
+  return frontmatter;
 }
 
 // ============================================================
 // Markdown Section Parser
 // ============================================================
 
-function parseSections(content: string): Map<string, string> {
+export function parseSections(content: string): Map<string, string> {
   const sections = new Map<string, string>();
   const lines = content.split('\n');
 
@@ -284,6 +289,99 @@ ${constraints}
 `;
 }
 
+function generateWindsurf(parsed: ParsedSkill): string {
+  const { frontmatter, sections } = parsed;
+  const protocol = sections.get('Context Loading Protocol') ?? '';
+  const commands = sections.get('Available Commands') ?? '';
+  const constraints = sections.get('Hard Constraints') ?? '';
+
+  return `---
+name: ${frontmatter.name}
+version: ${frontmatter.version}
+description: ${frontmatter.description}
+platforms: [${frontmatter.platforms.join(', ')}]
+---
+
+# ${frontmatter.name}
+
+${frontmatter.description}
+
+## Context Loading Protocol
+
+${protocol}
+
+## Available Commands
+
+${commands}
+
+## Hard Constraints
+
+${constraints}
+`;
+}
+
+function generateCody(parsed: ParsedSkill): string {
+  const { frontmatter, sections } = parsed;
+  const protocol = sections.get('Context Loading Protocol') ?? '';
+  const commands = sections.get('Available Commands') ?? '';
+  const constraints = sections.get('Hard Constraints') ?? '';
+
+  return `---
+name: ${frontmatter.name}
+version: ${frontmatter.version}
+description: ${frontmatter.description}
+platforms: [${frontmatter.platforms.join(', ')}]
+---
+
+# ${frontmatter.name}
+
+${frontmatter.description}
+
+## Context Loading Protocol
+
+${protocol}
+
+## Available Commands
+
+${commands}
+
+## Hard Constraints
+
+${constraints}
+`;
+}
+
+function generateCodewhisperer(parsed: ParsedSkill): string {
+  const { frontmatter, sections } = parsed;
+  const protocol = sections.get('Context Loading Protocol') ?? '';
+  const commands = sections.get('Available Commands') ?? '';
+  const constraints = sections.get('Hard Constraints') ?? '';
+
+  return `---
+name: ${frontmatter.name}
+version: ${frontmatter.version}
+description: ${frontmatter.description}
+platforms: [${frontmatter.platforms.join(', ')}]
+---
+
+# ${frontmatter.name}
+
+${frontmatter.description}
+
+## Context Loading Protocol
+
+${protocol}
+
+## Available Commands
+
+${commands}
+
+## Hard Constraints
+
+${constraints}
+`;
+}
+
 // ============================================================
 // Hook JSON Generator
 // ============================================================
@@ -331,6 +429,9 @@ async function generateAllFiles(parsed: ParsedSkill): Promise<void> {
     { name: 'SKILL-cursor.md', content: generateCursor(parsed) },
     { name: 'SKILL-openclaw.md', content: generateOpenClaw(parsed) },
     { name: 'SKILL-auggie.md', content: generateAuggie(parsed) },
+    { name: 'SKILL-windsurf.md', content: generateWindsurf(parsed) },
+    { name: 'SKILL-cody.md', content: generateCody(parsed) },
+    { name: 'SKILL-codewhisperer.md', content: generateCodewhisperer(parsed) },
   ];
 
   for (const file of files) {
@@ -353,6 +454,9 @@ async function checkFilesMatch(parsed: ParsedSkill): Promise<boolean> {
     { name: 'SKILL-cursor.md', content: generateCursor(parsed) },
     { name: 'SKILL-openclaw.md', content: generateOpenClaw(parsed) },
     { name: 'SKILL-auggie.md', content: generateAuggie(parsed) },
+    { name: 'SKILL-windsurf.md', content: generateWindsurf(parsed) },
+    { name: 'SKILL-cody.md', content: generateCody(parsed) },
+    { name: 'SKILL-codewhisperer.md', content: generateCodewhisperer(parsed) },
   ];
 
   let allMatch = true;

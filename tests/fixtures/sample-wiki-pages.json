@@ -1,0 +1,14 @@
+[
+  {
+    "title": "index",
+    "content": "# GraphWiki Index\n\nWelcome to the GraphWiki knowledge base. This index lists all concepts, entities, and modules tracked by the graph.\n\n## Communities\n\n- Community 1: Alpha-Beta cluster\n- Community 2: Gamma module"
+  },
+  {
+    "title": "overview",
+    "content": "# Overview\n\nGraphWiki tracks code relationships as a knowledge graph. Nodes represent functions, classes, and modules. Edges represent relationships like calls, imports, and uses."
+  },
+  {
+    "title": "AlphaFunction",
+    "content": "# AlphaFunction\n\nAlphaFunction is a function located in the alpha module.\n\n## Relationships\n\n- Calls: BetaClass\n\n## Properties\n\n- Language: TypeScript\n- Type: function"
+  }
+]

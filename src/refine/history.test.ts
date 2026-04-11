@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { RefinementHistory, createRefinementHistory } from './history.js';
-import { writeFile, rm, mkdir } from 'fs/promises';
+import { mkdir, rm } from 'fs/promises';
 import { join } from 'path';
 
 const TEST_DIR = '/tmp/graphwiki-test-history';
@@ -34,7 +34,7 @@ describe('RefinementHistory', () => {
 
       const loaded = await history.getHistory();
       expect(loaded.length).toBe(1);
-      expect(loaded[0].version).toBe('v1');
+      expect(loaded[0]?.version).toBe('v1');
     });
 
     it('should append multiple entries', async () => {
@@ -59,8 +59,8 @@ describe('RefinementHistory', () => {
 
       const loaded = await history.getHistory();
       expect(loaded.length).toBe(2);
-      expect(loaded[0].version).toBe('v1');
-      expect(loaded[1].version).toBe('v2');
+      expect(loaded[0]?.version).toBe('v1');
+      expect(loaded[1]?.version).toBe('v2');
     });
   });
 
@@ -83,7 +83,7 @@ describe('RefinementHistory', () => {
       const loaded = await history.getHistory();
 
       expect(loaded.length).toBe(1);
-      expect(loaded[0].version).toBe('v1');
+      expect(loaded[0]?.version).toBe('v1');
     });
   });
 
@@ -154,8 +154,8 @@ describe('RefinementHistory', () => {
 
       const loaded = await history.getHistory();
       expect(loaded.length).toBe(2);
-      expect(loaded[0].version).toBe('v1');
-      expect(loaded[1].version).toBe('v2');
+      expect(loaded[0]?.version).toBe('v1');
+      expect(loaded[1]?.version).toBe('v2');
     });
 
     it('should throw for non-existent version', async () => {
@@ -201,8 +201,8 @@ describe('RefinementHistory', () => {
       const range = await history.getVersionRange('v2', 'v4');
 
       expect(range.length).toBe(3);
-      expect(range[0].version).toBe('v2');
-      expect(range[2].version).toBe('v4');
+      expect(range[0]?.version).toBe('v2');
+      expect(range[2]?.version).toBe('v4');
     });
 
     it('should return empty for invalid range', async () => {

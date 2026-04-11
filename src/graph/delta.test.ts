@@ -12,7 +12,7 @@ describe("computeDelta", () => {
     };
     const delta = computeDelta(oldGraph, newGraph);
     expect(delta.added.nodes.length).toBe(1);
-    expect(delta.added.nodes[0].id).toBe("n1");
+    expect(delta.added.nodes[0]?.id).toBe("n1");
   });
 
   it("should detect removed nodes", () => {
@@ -23,7 +23,7 @@ describe("computeDelta", () => {
     const newGraph: GraphDocument = { nodes: [], edges: [] };
     const delta = computeDelta(oldGraph, newGraph);
     expect(delta.removed.nodes.length).toBe(1);
-    expect(delta.removed.nodes[0].id).toBe("n1");
+    expect(delta.removed.nodes[0]?.id).toBe("n1");
   });
 
   it("should detect modified nodes", () => {
@@ -37,7 +37,7 @@ describe("computeDelta", () => {
     };
     const delta = computeDelta(oldGraph, newGraph);
     expect(delta.modified.length).toBe(1);
-    expect(delta.modified[0].label).toBe("New");
+    expect(delta.modified[0]?.label).toBe("New");
   });
 
   it("should identify unchanged nodes", () => {

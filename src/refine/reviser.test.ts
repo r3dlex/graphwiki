@@ -1,7 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Reviser, createReviser } from './reviser.js';
-import { writeFile, rm, mkdir } from 'fs/promises';
-import { join } from 'path';
+import { rm, mkdir } from 'fs/promises';
 
 const TEST_DIR = '/tmp/graphwiki-test-reviser';
 

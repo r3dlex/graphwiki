@@ -30,6 +30,87 @@ const LANGUAGE_LOADERS: Record<string, LanguageLoader> = {
 
 let parserCache: Map<string, unknown> = new Map();
 
+// === C9: TreeSitterFactory — WASM/native routing ===
+export type ParserBackend = 'wasm' | 'native';
+
+interface TreeSitterFactoryOptions {
+  backend?: ParserBackend;
+}
+
+let wasmInitialized = false;
+let wasmInitPromise: Promise<void> | null = null;
+
+async function initWasm(): Promise<void> {
+  if (wasmInitialized) return;
+  if (wasmInitPromise) return wasmInitPromise;
+
+  wasmInitPromise = (async () => {
+    try {
+      // web-tree-sitter auto-initializes WASM on import
+      await import("web-tree-sitter");
+      wasmInitialized = true;
+    } catch {
+      // WASM init failed — fall back to native
+      wasmInitialized = false;
+    }
+  })();
+  return wasmInitPromise;
+}
+
+/**
+ * TreeSitterFactory routes parser creation to WASM or native based on options.
+ * WASM is the default for portability; native is a performance upgrade.
+ */
+export class TreeSitterFactory {
+  private backend: ParserBackend;
+
+  constructor(options: TreeSitterFactoryOptions = {}) {
+    this.backend = options.backend ?? (typeof process !== 'undefined' ? process.env?.["PARSER_BACKEND"] as ParserBackend : undefined) ?? 'wasm';
+  }
+
+  async createParser(language: string): Promise<{ parser: unknown; language: string }> {
+    if (this.backend === 'wasm') {
+      await initWasm();
+    }
+
+    const Parser = (await import("tree-sitter")).default;
+    const parser = new Parser();
+
+    const langKey = this.getLangKey(language);
+    const langLoader = LANGUAGE_LOADERS[langKey] ?? LANGUAGE_LOADERS[langKey.replace(/-/g, "")];
+
+    if (!langLoader) {
+      throw new Error(`Unsupported language: ${language}`);
+    }
+
+    const mod = await langLoader();
+    const LanguageClass = (mod as { Language: { new (): unknown } }).Language;
+
+    // @ts-ignore — tree-sitter Language instance
+    parser.setLanguage(LanguageClass);
+
+    return { parser, language: langKey };
+  }
+
+  private getLangKey(language: string): string {
+    const langMap: Record<string, string> = {
+      typescript: "typescript", ts: "typescript", tsx: "typescript",
+      javascript: "javascript", js: "javascript", jsx: "javascript",
+      python: "python", py: "python",
+      go: "go", rust: "rust",
+      java: "java", kotlin: "kotlin", scala: "scala",
+      c: "c", cpp: "cpp", "c-sharp": "c-sharp",
+      ruby: "ruby", php: "php", swift: "swift",
+      lua: "lua", elixir: "elixir", bash: "bash",
+    };
+    return langMap[language.toLowerCase()] ?? language.toLowerCase();
+  }
+
+  getBackend(): ParserBackend {
+    return this.backend;
+  }
+}
+
 async function _getLanguage(language: string): Promise<unknown> {
   if (parserCache.has(language)) return parserCache.get(language);
 
@@ -267,37 +348,20 @@ function extractImportNames(node: Record<string, unknown>): string[] {
   return names;
 }
 
-function getParserForLanguage(language: string): string {
-  // Use TypeScript parser for .ts/.tsx, JavaScript for .js/.jsx
-  const langMap: Record<string, string> = {
-    typescript: "typescript",
-    ts: "typescript",
-    tsx: "typescript",
-    javascript: "javascript",
-    js: "javascript",
-    jsx: "javascript",
-    python: "python",
-    py: "python",
-    go: "go",
-    rust: "rust",
-    java: "java",
-    kotlin: "kotlin",
-    scala: "scala",
-    c: "c",
-    cpp: "cpp",
-    "c-sharp": "c-sharp",
-    ruby: "ruby",
-    php: "php",
-    swift: "swift",
-    lua: "lua",
-    elixir: "elixir",
-    bash: "bash",
-  };
-
-  return langMap[language.toLowerCase()] ?? language.toLowerCase();
-}
 
 export class ASTExtractor {
+  private factory: TreeSitterFactory;
+  private backend: ParserBackend;
+
+  constructor(options: { parser?: ParserBackend } = {}) {
+    this.backend = options.parser ?? (typeof process !== 'undefined' ? process.env?.["PARSER_BACKEND"] as ParserBackend : undefined) ?? 'wasm';
+    this.factory = new TreeSitterFactory({ backend: this.backend });
+  }
+
+  getBackend(): ParserBackend {
+    return this.backend;
+  }
+
   /**
    * Extract graph nodes and edges from source code using tree-sitter.
    */
@@ -306,36 +370,12 @@ export class ASTExtractor {
     language: string,
     sourcePath: string
   ): Promise<{ nodes: GraphNode[]; edges: GraphEdge[] }> {
-    const langKey = getParserForLanguage(language);
-
-    const Parser = (await import("tree-sitter")).default;
-
-    const parser = new Parser();
-
-    // Load language
-    const langLoader = LANGUAGE_LOADERS[langKey] ?? LANGUAGE_LOADERS[langKey.replace(/-/g, "")];
-    if (!langLoader) {
-      // Fallback: return minimal extraction with content as rationale
-      return {
-        nodes: [
-          {
-            id: `${sourcePath}-module`,
-            type: "module",
-            label: sourcePath.split("/").pop() ?? sourcePath,
-            properties: { content },
-            provenance: [sourcePath],
-          },
-        ],
-        edges: [],
-      };
-    }
-
-    let LanguageClass: unknown;
+    let tree: unknown;
     try {
-      const mod = await langLoader();
-      LanguageClass = (mod as { Language: { new (): unknown } }).Language;
+      const { parser } = await this.factory.createParser(language);
+      tree = (parser as { parse(content: string): unknown }).parse(content);
     } catch {
-      // Language load failed — fallback
+      // Factory failed — fallback to minimal extraction
       return {
         nodes: [
           {
@@ -351,26 +391,6 @@ export class ASTExtractor {
     }
 
     try {
-      // @ts-ignore — tree-sitter Language instance
-      parser.setLanguage(LanguageClass);
-    } catch {
-      // Language not available — fallback
-      return {
-        nodes: [
-          {
-            id: `${sourcePath}-module`,
-            type: "module",
-            label: sourcePath.split("/").pop() ?? sourcePath,
-            properties: { content },
-            provenance: [sourcePath],
-          },
-        ],
-        edges: [],
-      };
-    }
-
-    try {
-      const tree = parser.parse(content);
       const docId = sourcePath.replace(/[^a-zA-Z0-9]/g, "_");
 
       const ctx: ExtractionContext = {

@@ -5,7 +5,7 @@ import type { LLMProvider, GraphDocument, GraphDelta } from '../types.js';
 import type { CommunityMeta } from './types.js';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { mkdirSync, rmSync, writeFileSync, readFileSync } from 'fs';
+import { mkdirSync, writeFileSync, readFileSync } from 'fs';
 
 const mockProvider: LLMProvider = {
   complete: vi.fn(),
@@ -45,7 +45,7 @@ describe('WikiUpdater', () => {
       unchanged: ['n1', 'n2'],
     };
 
-    mockProvider.complete
+    (mockProvider.complete as any)
       .mockResolvedValueOnce({
         content: '1. Overview\n2. Details',
         usage: { input_tokens: 50, output_tokens: 20, total_tokens: 70 },
@@ -95,7 +95,7 @@ Existing content about Node 1.`,
     };
 
     // For community compilation (stage1 + stage2)
-    mockProvider.complete
+    (mockProvider.complete as any)
       .mockResolvedValueOnce({
         content: '1. Overview',
         usage: { input_tokens: 50, output_tokens: 20, total_tokens: 70 },
@@ -124,7 +124,7 @@ Existing content about Node 1.`,
       unchanged: [],
     };
 
-    mockProvider.complete
+    (mockProvider.complete as any)
       .mockResolvedValueOnce({
         content: '1. Overview',
         usage: { input_tokens: 50, output_tokens: 20, total_tokens: 70 },

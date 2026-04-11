@@ -128,7 +128,7 @@ describe("traversal", () => {
     it("should only include edges between specified nodes", () => {
       const result = getSubgraph(sampleGraph, ["n0", "n1"]);
       expect(result.edges.length).toBe(1);
-      expect(result.edges[0].source).toBe("n0");
+      expect(result.edges[0]?.source).toBe("n0");
     });
 
     it("should return empty when no nodes match", () => {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { GraphReporter } from './reporter.js';
 import type { GraphDocument, GraphNode, GraphEdge } from '../types.js';
 
@@ -24,7 +24,7 @@ describe('GraphReporter', () => {
       const godNodes = reporter.detectGodNodes(graph, 2);
 
       expect(godNodes.length).toBeLessThanOrEqual(2);
-      expect(godNodes[0].id).toBe('hub');
+      expect(godNodes[0]?.id).toBe('hub');
     });
 
     it('should return empty array for empty graph', () => {

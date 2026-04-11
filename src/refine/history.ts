@@ -2,8 +2,7 @@
 // Append-only log of refinement history with rollback support
 
 import type { RefinementHistoryEntry } from '../types.js';
-import { writeFile, readFile, mkdir, rename, unlink } from 'fs/promises';
-import { join } from 'path';
+import { readFile, mkdir, rename, unlink } from 'fs/promises';
 
 const LOCK_FILE_SUFFIX = '.lock';
 
@@ -99,7 +98,7 @@ export class RefinementHistory {
   async getLatestVersion(): Promise<string | null> {
     const history = await this.getHistory();
     if (history.length === 0) return null;
-    return history[history.length - 1].version;
+    return history[history.length - 1]!.version;
   }
 
   /**
@@ -188,6 +187,42 @@ export class RefinementHistory {
     const lines = history.map(e => JSON.stringify(e)).join('\n');
     await writeFile(this.historyPath, lines, 'utf-8');
   }
+
+  /**
+   * Generate audit trail for refinement history
+   *
+   * Returns timestamped entries with change summaries for compliance tracking
+   */
+  async auditTrail(): Promise<Array<{
+    id: string;
+    timestamp: string;
+    promptVersion: string;
+    score: number;
+    diagnostics: string[];
+  }>> {
+    const history = await this.getHistory();
+    return history.map((entry, index) => ({
+      id: `audit-${index + 1}`,
+      timestamp: entry.timestamp,
+      promptVersion: entry.version,
+      score: entry.validationScore,
+      diagnostics: entry.diagnostics.map(d => d.nodeId || 'unknown'),
+    }));
+  }
+}
+
+/**
+ * Create audit trail from history file
+ */
+export async function auditTrail(historyPath: string): Promise<Array<{
+  id: string;
+  timestamp: string;
+  promptVersion: string;
+  score: number;
+  diagnostics: string[];
+}>> {
+  const history = new RefinementHistory(historyPath);
+  return history.auditTrail();
 }
 
 /**

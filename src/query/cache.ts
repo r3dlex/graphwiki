@@ -1,9 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 import type { QueryResult } from './types.js';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 interface CacheEntry {
   result: QueryResult;

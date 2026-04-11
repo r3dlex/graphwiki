@@ -3,6 +3,8 @@
 
 import type { Express } from 'express';
 import type { GraphDocument, MCPRequest } from '../types.js';
+import { GRAPH_WIKI_TOOLS, registerTools } from './tools.js';
+import { executeTool } from './executor.js';
 
 // Lock interface for write operations
 export interface Mutex {
@@ -222,5 +224,56 @@ export function createGraphState(graph: GraphDocument): GraphState {
     graph,
     writeLock: createMutex(),
     lastModified: new Date().toISOString(),
+  };
+}
+
+// === B8: MCP HTTP executor wiring ===
+
+export function createMcpServer(
+  graph: GraphDocument,
+  wikiPages: Array<{ title: string; content: string }> = []
+): {
+  app: Express;
+  setContext: (graph: GraphDocument, wikiPages: Array<{ title: string; content: string }>) => void;
+} {
+  let context: { graph: GraphDocument; wikiPath?: string; corpusPath?: string; wikiPages?: Array<{ title: string; content: string }> } = { graph, wikiPath: undefined, corpusPath: undefined };
+  if (wikiPages.length > 0) {
+    context.wikiPages = wikiPages;
+  }
+
+  const app = (require('express') as typeof import('express'))();
+  app.use(require('express').json());
+  createHttpTransport(app);
+
+  const handler = registerTools(GRAPH_WIKI_TOOLS, async (toolName, args) => {
+    return executeTool(toolName, args, context);
+  });
+
+  // Wrap handler to support initialize
+  const mcpHandler = async (request: unknown): Promise<unknown> => {
+    const req = request as { method: string; params?: Record<string, unknown>; id?: string | number };
+
+    if (req.method === 'initialize') {
+      return {
+        protocolVersion: '2024-11-05',
+        capabilities: { tools: {} },
+        serverInfo: { name: 'graphwiki', version: '2.0.0' },
+      };
+    }
+
+    if (req.method === 'initialized') {
+      return null;
+    }
+
+    return handler(request);
+  };
+
+  setMcpHandler(app, mcpHandler);
+
+  return {
+    app,
+    setContext: (g: GraphDocument, w: Array<{ title: string; content: string }>) => {
+    context = { graph: g, wikiPages: w, wikiPath: undefined, corpusPath: undefined } as any;
+    },
   };
 }

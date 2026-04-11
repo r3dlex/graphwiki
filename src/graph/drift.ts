@@ -6,10 +6,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { dirname } from "path";
 
 export class DriftDetector {
-  private driftThreshold: number;
-  private maxScopedRuns: number;
   private runCount: number = 0;
-  private previousCommunities: Map<string, number> | null = null;
   private logPath: string;
 
   constructor(config: {
@@ -17,8 +14,6 @@ export class DriftDetector {
     max_scoped_runs: number;
     logPath?: string;
   }) {
-    this.driftThreshold = config.drift_threshold;
-    this.maxScopedRuns = config.max_scoped_runs;
     this.logPath = config.logPath ?? "graphwiki-out/drift-log.json";
     this._ensureLogDir();
   }
@@ -45,12 +40,7 @@ export class DriftDetector {
       }
     }
 
-    // Compute drift ratio
-    const totalNodes = newCommunities.size;
-    const driftRatio = totalNodes > 0 ? driftedNodes.length / totalNodes : 0;
-
     // Determine if drift exceeds threshold
-    const drifted = driftRatio >= this.driftThreshold;
 
     // Nodes affected by change (nodes whose neighbors changed community)
     const affectedByChange = new Set<string>();
@@ -67,15 +57,12 @@ export class DriftDetector {
     const entry: DriftLogEntry = {
       timestamp: new Date().toISOString(),
       drifted_nodes: driftedNodes,
-      new_communities: new Map(newCommunities),
+      new_communities: Object.fromEntries(newCommunities),
       affected_by_change: affectedByChange,
     };
 
     // Persist to drift-log.json
     this._persistLog(entry);
-
-    // Update previous communities for next run
-    this.previousCommunities = new Map(newCommunities);
 
     return entry;
   }
@@ -99,14 +86,13 @@ export class DriftDetector {
       }
     }
 
-    // Serialize Map fields
+    // Serialize Set fields
     const serializable = {
       ...entry,
-      new_communities: Object.fromEntries(entry.new_communities),
       affected_by_change: Array.from(entry.affected_by_change),
     };
 
-    logs.push(serializable as DriftLogEntry);
+    logs.push(serializable as unknown as DriftLogEntry);
 
     writeFileSync(this.logPath, JSON.stringify(logs, null, 2), "utf-8");
   }
@@ -117,6 +103,5 @@ export class DriftDetector {
 
   reset(): void {
     this.runCount = 0;
-    this.previousCommunities = null;
   }
 }

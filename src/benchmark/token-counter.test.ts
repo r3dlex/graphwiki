@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { TokenCounter, getGlobalCounter, setGlobalCounter } from './token-counter.js';
-import { writeFile, mkdir, rm } from 'fs/promises';
+import { mkdir, rm } from 'fs/promises';
 import { join } from 'path';
 
 const TEST_DIR = '/tmp/graphwiki-test-token-counter';

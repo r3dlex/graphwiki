@@ -1,7 +1,9 @@
 // MCP JSON-RPC over stdio transport for GraphWiki v2
 // Reads from stdin, writes to stdout
 
-import type { MCPTransport, MCPRequest, MCPResponse } from '../types.js';
+import type { MCPTransport, MCPRequest, MCPResponse, GraphDocument } from '../types.js';
+import { GRAPH_WIKI_TOOLS, registerTools } from './tools.js';
+import { executeTool } from './executor.js';
 
 interface StdioTransport extends MCPTransport {
   send: (response: unknown, eventId?: string) => void;
@@ -219,3 +221,61 @@ export const JSONRPC_ERROR_CODES = {
   INVALID_PARAMS: -32602,
   INTERNAL_ERROR: -32603,
 } as const;
+
+// === B9: MCP initialize handshake ===
+
+interface InitializeResult {
+  protocolVersion: string;
+  capabilities: {
+    tools: Record<string, unknown>;
+  };
+  serverInfo: { name: string; version: string };
+}
+
+export function createMcpServer(
+  graph: import('../types.js').GraphDocument,
+  wikiPages: Array<{ title: string; content: string }> = []
+): { transport: StdioTransport; setContext: (graph: import('../types.js').GraphDocument, wikiPages: Array<{ title: string; content: string }>) => void } {
+  const transport = createStdioTransport();
+
+  // Mutable context for hot-reload of graph state
+  let context: { graph: GraphDocument; wikiPath?: string; corpusPath?: string; wikiPages?: Array<{ title: string; content: string }> } = { graph, wikiPath: undefined, corpusPath: undefined };
+  if (wikiPages.length > 0) {
+    context.wikiPages = wikiPages;
+  }
+
+  // B7/B9: Register tools + executor + initialize handler
+  const handler = registerTools(GRAPH_WIKI_TOOLS, async (toolName, args) => {
+    return executeTool(toolName, args, context);
+  });
+
+  // Wrap handler to support initialize
+  const mcpHandler = async (request: unknown): Promise<unknown> => {
+    const req = request as { method: string; params?: Record<string, unknown>; id?: string | number };
+
+    if (req.method === 'initialize') {
+      void req.params;
+      return {
+        protocolVersion: '2024-11-05',
+        capabilities: { tools: {} },
+        serverInfo: { name: 'graphwiki', version: '2.0.0' },
+      } satisfies InitializeResult;
+    }
+
+    if (req.method === 'initialized') {
+      // Client-initiated post-initialize notification — acknowledge
+      return null;
+    }
+
+    return handler(request);
+  };
+
+  transport.onRequest(mcpHandler);
+
+  return {
+    transport,
+    setContext: (g: import('../types.js').GraphDocument, w: Array<{ title: string; content: string }>) => {
+    context = { graph: g, wikiPages: w, wikiPath: undefined, corpusPath: undefined } as any;
+    },
+  };
+}

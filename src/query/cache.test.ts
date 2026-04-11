@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { QueryCache } from './cache.js';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { rmSync, existsSync } from 'fs';
+import { rmSync } from 'fs';
 
 describe('QueryCache', () => {
   const tempCacheDir = join(tmpdir(), 'graphwiki-cache-test-' + Date.now());

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { BatchCoordinator } from "./batch-coordinator.js";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
@@ -115,10 +115,56 @@ describe("BatchCoordinator", () => {
       expect(result).toBeNull();
     });
 
+    it("readState returns null when JSON is corrupted", async () => {
+      const corruptDir = `/tmp/graphwiki-batch-corrupt-${randomUUID()}`;
+      await fs.mkdir(corruptDir, { recursive: true });
+      await fs.writeFile(path.join(corruptDir, "batch-state.json"), "not valid json{{", "utf-8");
+
+      const result = await BatchCoordinator.readState(corruptDir);
+      expect(result).toBeNull();
+
+      await fs.rm(corruptDir, { recursive: true, force: true });
+    });
+
     it("writeState creates directory recursively", async () => {
       await coordinator.writeState(`${tmpDir}/nested/deep`);
       const exists = await fs.access(path.join(tmpDir, "nested", "deep", "batch-state.json")).then(() => true).catch(() => false);
       expect(exists).toBe(true);
+    });
+  });
+
+  describe("edge cases", () => {
+    it("markComplete ignores duplicates", () => {
+      coordinator.markComplete("a.ts");
+      coordinator.markComplete("a.ts");
+      coordinator.markComplete("a.ts");
+      expect(coordinator.getState().completed.filter(f => f === "a.ts")).toHaveLength(1);
+    });
+
+    it("markFailed returns early if file already failed", () => {
+      coordinator.markFailed("a.ts", "timeout", "Error 1");
+      coordinator.markFailed("a.ts", "parse_error", "Error 2"); // Should be ignored
+      const state = coordinator.getState();
+      expect(state.failed).toHaveLength(1);
+      expect(state.failed[0].reason).toBe("timeout");
+    });
+
+    it("markSkipped returns early if file already skipped", () => {
+      coordinator.markSkipped("a.ts", "empty");
+      coordinator.markSkipped("a.ts", "unsupported"); // Should be ignored
+      const state = coordinator.getState();
+      expect(state.skipped).toHaveLength(1);
+      expect(state.skipped[0].reason).toBe("empty");
+    });
+
+    it("getState returns current state without mutation", () => {
+      coordinator.assignFiles(["a.ts"], 1);
+      coordinator.markComplete("a.ts");
+
+      const state1 = coordinator.getState();
+      const state2 = coordinator.getState();
+
+      expect(state1).toEqual(state2);
     });
   });
 });

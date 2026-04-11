@@ -1,7 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach, beforeEach } from "vitest";
 import { ExtractionCache } from "./extraction-cache.js";
 import * as fs from "node:fs/promises";
-import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 
 describe("ExtractionCache", () => {
@@ -33,6 +32,23 @@ describe("ExtractionCache", () => {
   it("returns null for missing hash", async () => {
     const cache = new ExtractionCache(tmpDir);
     const retrieved = await cache.get("nonexistent");
+    expect(retrieved).toBeNull();
+  });
+
+  it("returns null when cached file is unreadable", async () => {
+    const cache = new ExtractionCache(tmpDir);
+    const result = {
+      document: { id: "doc1", nodes: [], edges: [] },
+      cache_hit: false,
+      duration_ms: 100,
+    };
+    await cache.set("corrupt", result);
+
+    // Corrupt the file to trigger catch block
+    const corruptPath = `${tmpDir}/corrupt.json`;
+    await fs.writeFile(corruptPath, "not valid json{{", "utf-8");
+
+    const retrieved = await cache.get("corrupt");
     expect(retrieved).toBeNull();
   });
 
@@ -79,10 +95,65 @@ describe("ExtractionCache", () => {
     expect(manifest).toEqual({});
   });
 
+  it("getManifest returns empty object when manifest is corrupted", async () => {
+    const cache = new ExtractionCache(tmpDir);
+    await fs.mkdir(tmpDir, { recursive: true });
+    await fs.writeFile(`${tmpDir}/manifest.json`, "not valid json{{", "utf-8");
+
+    const manifest = await cache.getManifest();
+    expect(manifest).toEqual({});
+  });
+
   it("set creates cache directory recursively", async () => {
     const nestedCache = new ExtractionCache(`${tmpDir}/nested/deep`);
     await nestedCache.set("hash1", { document: { id: "d", nodes: [], edges: [] }, cache_hit: false, duration_ms: 1 });
     const retrieved = await nestedCache.get("hash1");
     expect(retrieved).not.toBeNull();
+  });
+
+  it("contentKey returns a sha256 hash", async () => {
+    const cache = new ExtractionCache(tmpDir);
+    const key1 = await cache.contentKey("hello world");
+    const key2 = await cache.contentKey("hello world");
+    const key3 = await cache.contentKey("different");
+
+    expect(key1).toBe(key2); // Same content = same hash
+    expect(key3).not.toBe(key1); // Different content = different hash
+    expect(key1.length).toBe(64); // SHA-256 hex is 64 chars
+  });
+
+  it("contentKey works with Buffer input", async () => {
+    const cache = new ExtractionCache(tmpDir);
+    const key = await cache.contentKey(Buffer.from("test content"));
+    expect(key.length).toBe(64);
+  });
+
+  it("updateManifest overwrites existing entry with same hash", async () => {
+    const cache = new ExtractionCache(tmpDir);
+    const entry1 = {
+      file: "src/test.ts",
+      hash: "hash456",
+      extractor: "ast",
+      timestamp: Date.now(),
+      size_bytes: 1024,
+      node_count: 5,
+      edge_count: 3,
+    };
+    const entry2 = {
+      file: "src/test.ts",
+      hash: "hash456",
+      extractor: "ast",
+      timestamp: Date.now() + 1000,
+      size_bytes: 2048,
+      node_count: 10,
+      edge_count: 6,
+    };
+
+    await cache.updateManifest(entry1);
+    await cache.updateManifest(entry2);
+
+    const manifest = await cache.getManifest();
+    expect(manifest["hash456"].node_count).toBe(10);
+    expect(manifest["hash456"].size_bytes).toBe(2048);
   });
 });

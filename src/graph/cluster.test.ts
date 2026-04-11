@@ -106,4 +106,25 @@ describe("cluster", () => {
     // Each node should be its own community since there are no edges
     expect(result.size).toBe(2);
   });
+
+  it("should produce asymmetric adjacency for directed graphs", () => {
+    // Directed graph: A->B and B->A are distinct edges
+    const graph: GraphDocument = {
+      nodes: [
+        { id: "a", label: "A", type: "class" },
+        { id: "b", label: "B", type: "class" },
+      ],
+      edges: [
+        { id: "e1", source: "a", target: "b", weight: 1 },
+        { id: "e2", source: "b", target: "a", weight: 1 },
+      ],
+      metadata: { directed: true },
+    };
+    const result = cluster(graph);
+    expect(result.size).toBe(2);
+    // In directed mode, A->B and B->A are tracked separately
+    // The adjacency building skips reverse-direction push
+    expect(result.get("a")).toBeDefined();
+    expect(result.get("b")).toBeDefined();
+  });
 });

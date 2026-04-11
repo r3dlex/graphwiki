@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { LLMExtractor } from "./llm-extractor.js";
 import type { LLMProvider } from "../types.js";
 import * as fs from "node:fs/promises";

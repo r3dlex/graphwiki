@@ -1,12 +1,9 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 import type { GraphDocument, GraphDelta } from '../types.js';
 import type { CommunityMeta, WikiPage, WikiPageFrontmatter } from './types.js';
 import { WikiCompiler } from './compiler.js';
 import matter from 'gray-matter';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export class WikiUpdater {
   private wikiDir: string;
