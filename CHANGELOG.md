@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-04-12
+
+### Fixed
+- Watch mode: `unlink` events now correctly populate `removed[]` in `FileWatcher.flush()` — previously untracked due to `Set<string>` losing event type; fixed by switching to `Map<string, 'add' | 'change' | 'unlink'>` (613098a)
+
+### Docs
+- Added reference to sister project [graphify](https://github.com/safishamsi/graphify) in README (c8b8cba)
+
 ## [3.0.0] - 2026-04-12
 
 ### Added
