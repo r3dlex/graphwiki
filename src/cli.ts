@@ -9,7 +9,7 @@ import { glob } from 'glob';
 import { resolveIgnoresSplit } from './util/ignore-resolver.js';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync, writeFileSync, unlinkSync, readFileSync, mkdirSync } from 'fs';
+import { existsSync, writeFileSync, unlinkSync, readFileSync, mkdirSync, readdirSync } from 'fs';
 import { computeDelta, persistDelta } from './graph/delta.js';
 import { DriftDetector } from './graph/drift.js';
 import { BatchCoordinator } from './extract/batch-coordinator.js';
@@ -225,6 +225,24 @@ async function extractGraph(
     }
   }
 
+  // Markdown files: extract locally via frontmatter parser
+  const { extractFromMarkdown } = await import('./extract/frontmatter-extractor.js');
+  for (const file of files) {
+    const ext = file.split('.').pop()?.toLowerCase();
+    if (ext === 'md' || ext === 'mdx' || ext === 'markdown') {
+      try {
+        const fullPath = join(basePath, file);
+        const content = await readFile(fullPath, 'utf-8');
+        const { nodes, edges } = extractFromMarkdown(content, file);
+        for (const node of nodes) {
+          (node as GraphDocument['nodes'][0]).source_file = file;
+        }
+        allNodes.push(...(nodes as GraphDocument['nodes']));
+        allEdges.push(...(edges as GraphDocument['edges']));
+      } catch { /* skip unreadable */ }
+    }
+  }
+
   return {
     nodes: allNodes,
     edges: allEdges,
@@ -327,12 +345,35 @@ program
         console.log(`[GraphWiki] Extraction complete: ${finalGraph.nodes.length} nodes, ${finalGraph.edges.length} edges`);
       }
 
-      // --mode deep warning
-      if (options.mode === 'deep') {
-        const hasProvider = !!(process.env['ANTHROPIC_API_KEY'] || process.env['OPENAI_API_KEY'] || process.env['GOOGLE_API_KEY']);
-        if (!hasProvider) {
-          console.warn('[GraphWiki] --mode deep: no LLM provider found (ANTHROPIC_API_KEY / OPENAI_API_KEY / GOOGLE_API_KEY). Proceeding with AST-only extraction.');
+      // Generate extraction prompts for non-code, non-markdown files
+      if (!options.wikiOnly && !options.clusterOnly) {
+        const { generateExtractionPrompt } = await import('./extract/prompt-generator.js');
+        const pendingDir = join(graphwikiDir, 'pending');
+        const promptExts = new Set(['.pdf', '.docx', '.pptx', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
+        let promptCount = 0;
+        for (const file of discovered) {
+          const ext = '.' + (file.split('.').pop()?.toLowerCase() ?? '');
+          if (promptExts.has(ext)) {
+            await generateExtractionPrompt(join(path, file), pendingDir);
+            promptCount++;
+          }
         }
+        if (promptCount > 0) {
+          console.log(`[GraphWiki] Generated ${promptCount} extraction prompts in ${pendingDir}/`);
+        }
+      }
+
+      // --mode deep: generate extraction prompts for ALL discovered files
+      if (options.mode === 'deep') {
+        const { generateExtractionPrompt } = await import('./extract/prompt-generator.js');
+        const deepDir = join(graphwikiDir, 'pending', 'deep');
+        let deepCount = 0;
+        for (const file of discovered) {
+          await generateExtractionPrompt(join(path, file), deepDir);
+          deepCount++;
+        }
+        console.log(`[GraphWiki] Deep mode: generated ${deepCount} prompts in ${deepDir}/`);
+        console.log('[GraphWiki] Process prompts in .graphwiki/pending/deep/ to find non-obvious relationships');
       }
 
       // D4: Orphaned-assignment recovery — check for stale subagent assignments on resume
@@ -533,6 +574,36 @@ program
       if (options.directed) {
         finalGraph.metadata = { ...finalGraph.metadata, directed: true };
       }
+      // Merge any completed agent extraction results
+      const pendingDir2 = join(graphwikiDir, 'pending');
+      if (existsSync(pendingDir2)) {
+        const resultFiles = readdirSync(pendingDir2).filter((f: string) => f.endsWith('.result.json'));
+        let mergedCount = 0;
+        for (const rf of resultFiles) {
+          try {
+            const data = JSON.parse(readFileSync(join(pendingDir2, rf), 'utf-8')) as { nodes?: unknown[]; edges?: unknown[] };
+            if (Array.isArray(data.nodes)) {
+              for (const n of data.nodes as GraphDocument['nodes']) {
+                if (!finalGraph.nodes.find((existing) => existing.id === n.id)) {
+                  finalGraph.nodes.push(n);
+                }
+              }
+            }
+            if (Array.isArray(data.edges)) {
+              for (const e of data.edges as GraphDocument['edges']) {
+                if (!finalGraph.edges.find((existing) => existing.id === e.id)) {
+                  finalGraph.edges.push(e);
+                }
+              }
+            }
+            mergedCount++;
+          } catch { /* skip malformed */ }
+        }
+        if (mergedCount > 0) {
+          console.log(`[GraphWiki] Merged ${mergedCount} agent extraction results`);
+        }
+      }
+
       await saveGraph(finalGraph, config.paths.graph);
 
       // D4: Atomic write — write batch state using temp+rename pattern

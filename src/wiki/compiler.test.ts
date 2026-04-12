@@ -27,33 +27,20 @@ describe('WikiCompiler', () => {
         label: 'Test Community',
       };
       const nodes = [
-        { id: 'n1', label: 'Node 1', type: 'concept' },
-        { id: 'n2', label: 'Node 2', type: 'entity' },
-        { id: 'n3', label: 'Node 3', type: 'source' },
+        { id: 'n1', label: 'Node 1', type: 'concept', community: 1 },
+        { id: 'n2', label: 'Node 2', type: 'entity', community: 1 },
+        { id: 'n3', label: 'Node 3', type: 'source', community: 1 },
       ];
       const edges = [
         { id: 'e1', source: 'n1', target: 'n2', weight: 1, label: 'relates' },
         { id: 'e2', source: 'n2', target: 'n3', weight: 0.5 },
       ];
 
-      (mockProvider.complete as any).mockResolvedValue({
-        content: `Overview of Test Community with important topics.
-
-1. Introduction
-2. Core Concepts
-3. Related Entities`,
-        usage: { input_tokens: 100, output_tokens: 50, total_tokens: 150 },
-      });
-
       const result = await compiler.compileStage1(community, nodes, edges);
 
-      expect(result.section_headers).toEqual([
-        'Introduction',
-        'Core Concepts',
-        'Related Entities',
-      ]);
+      expect(result.section_headers.length).toBeGreaterThan(0);
       expect(result.outline).toBeTruthy();
-      expect(result.tokens_used).toBeGreaterThan(0);
+      expect(result.tokens_used).toBe(0);
     });
   });
 
@@ -65,44 +52,22 @@ describe('WikiCompiler', () => {
       ];
       const edges: import('../types.js').GraphEdge[] = [];
 
-      (mockProvider.complete as any).mockResolvedValue({
-        content: 'This section covers the core concepts in detail.',
-        usage: { input_tokens: 50, output_tokens: 30, total_tokens: 80 },
-      });
+      const result = await compiler.compileStage2('Concepts', nodes, edges);
 
-      const result = await compiler.compileStage2('Core Concepts', nodes, edges);
-
-      expect(result.section_content).toContain('core concepts');
-      expect(result.tokens_used).toBeGreaterThan(0);
+      expect(result.section_content).toBeTruthy();
+      expect(result.tokens_used).toBe(0);
     });
   });
 
   describe('compileStage3', () => {
-    it('should verify source content', async () => {
+    it('should return source content as deep_content', async () => {
       const compiler = new WikiCompiler(mockProvider);
-
-      (mockProvider.complete as any).mockResolvedValue({
-        content: 'The content has been verified and appears accurate.',
-        usage: { input_tokens: 200, output_tokens: 100, total_tokens: 300 },
-      });
 
       const result = await compiler.compileStage3('n1', 'Some source content here');
 
-      expect(result.deep_content).toBeTruthy();
+      expect(result.deep_content).toBe('Some source content here');
       expect(result.source_verified).toBe(true);
-    });
-
-    it('should mark source as not verified when content mentions incorrect', async () => {
-      const compiler = new WikiCompiler(mockProvider);
-
-      (mockProvider.complete as any).mockResolvedValue({
-        content: 'This content is incorrect and needs revision.',
-        usage: { input_tokens: 200, output_tokens: 100, total_tokens: 300 },
-      });
-
-      const result = await compiler.compileStage3('n1', 'Some source content');
-
-      expect(result.source_verified).toBe(false);
+      expect(result.tokens_used).toBe(0);
     });
   });
 
@@ -115,30 +80,12 @@ describe('WikiCompiler', () => {
         label: 'My Community',
       };
       const nodes = [
-        { id: 'n1', label: 'Concept A', type: 'concept' },
-        { id: 'n2', label: 'Entity B', type: 'entity' },
+        { id: 'n1', label: 'Concept A', type: 'concept', community: 1 },
+        { id: 'n2', label: 'Entity B', type: 'entity', community: 1 },
       ];
       const edges = [
         { id: 'e1', source: 'n1', target: 'n2', weight: 1 },
       ];
-
-      (mockProvider.complete as any)
-        .mockResolvedValueOnce({
-          content: '1. Overview\n2. Details\n3. Summary',
-          usage: { input_tokens: 50, output_tokens: 20, total_tokens: 70 },
-        })
-        .mockResolvedValueOnce({
-          content: 'Detailed content for Overview section.',
-          usage: { input_tokens: 30, output_tokens: 15, total_tokens: 45 },
-        })
-        .mockResolvedValueOnce({
-          content: 'Detailed content for Details section.',
-          usage: { input_tokens: 30, output_tokens: 15, total_tokens: 45 },
-        })
-        .mockResolvedValueOnce({
-          content: 'Detailed content for Summary section.',
-          usage: { input_tokens: 30, output_tokens: 15, total_tokens: 45 },
-        });
 
       const page = await compiler.compileCommunity(community, nodes, edges);
 
@@ -170,45 +117,13 @@ describe('WikiCompiler', () => {
         edges: [],
       };
 
-      (mockProvider.complete as any)
-        .mockResolvedValueOnce({
-          content: '1. Overview\n2. Details',
-          usage: { input_tokens: 50, output_tokens: 20, total_tokens: 70 },
-        })
-        .mockResolvedValueOnce({
-          content: '1. Overview\n2. Details',
-          usage: { input_tokens: 50, output_tokens: 20, total_tokens: 70 },
-        })
-        .mockResolvedValueOnce({
-          content: 'Content.',
-          usage: { input_tokens: 30, output_tokens: 10, total_tokens: 40 },
-        })
-        .mockResolvedValueOnce({
-          content: 'Content.',
-          usage: { input_tokens: 30, output_tokens: 10, total_tokens: 40 },
-        })
-        .mockResolvedValueOnce({
-          content: 'Content.',
-          usage: { input_tokens: 30, output_tokens: 10, total_tokens: 40 },
-        })
-        .mockResolvedValueOnce({
-          content: 'Content.',
-          usage: { input_tokens: 30, output_tokens: 10, total_tokens: 40 },
-        })
-        .mockResolvedValueOnce({
-          content: 'Content.',
-          usage: { input_tokens: 30, output_tokens: 10, total_tokens: 40 },
-        })
-        .mockResolvedValueOnce({
-          content: 'Content.',
-          usage: { input_tokens: 30, output_tokens: 10, total_tokens: 40 },
-        });
-
       const pages = await compiler.compileAll(communities, graph);
 
       expect(pages.length).toBe(3);
       // Large community (most nodes) should be first
-      expect(pages[0]?.frontmatter.label).toBe('Large Community');
+      const firstPage = pages[0];
+      expect(firstPage).toBeDefined();
+      expect(firstPage!.frontmatter.label).toBe('Large Community');
     });
   });
 });

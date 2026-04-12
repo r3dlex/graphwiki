@@ -53,3 +53,17 @@
 | `graphwiki skill generate` | `--check` | Generate platform-specific skill files from SKILL.md | Generates SKILL-*.md files, checks for errors |
 | `graphwiki skill uninstall` | `--platform <name>` | Remove skill installation for a platform | Platform skill files removed |
 | `graphwiki skill uninstall` | `--all` | Remove all skill installations | All SKILL-*.md files removed |
+
+## Extraction Prompt Workflow
+
+After `graphwiki build`, check `.graphwiki/pending/` for extraction prompts.
+
+For each `.prompt.md` file:
+1. Read the prompt instructions
+2. Read the referenced source file
+3. Extract nodes and edges as JSON
+4. Write the result to the `.result.json` path specified in the prompt
+5. Run `graphwiki build . --update` to merge results
+
+`--mode deep` generates prompts for ALL files (including code) to find
+speculative relationships the AST parser cannot detect.

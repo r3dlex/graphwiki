@@ -5,6 +5,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [3.0.4] - 2026-04-13
+
+### Added
+- Markdown files (`.md`, `.mdx`) now extracted into the knowledge graph via new `frontmatter-extractor.ts` — YAML frontmatter keys become node properties, headings become concept nodes, wikilinks and local markdown links become edges (zero LLM tokens)
+- New `prompt-generator.ts` — generates `.graphwiki/pending/*.prompt.md` files for non-code files (PDFs, images, Office docs) so the calling agent can extract knowledge and write results back as `.result.json`
+- `graphwiki build . --mode deep` now generates extraction prompts for ALL discovered files to find non-obvious relationships; no longer checks for API keys
+
+### Changed
+- `WikiCompiler` constructor now accepts `null` as provider — `compileStage1/2/3` replaced with local graph-structure logic (zero API calls, zero tokens)
+- `--wiki-only` no longer crashes: wiki pages generated from graph structure without any LLM call
+- `@anthropic-ai/sdk` moved from `dependencies` → `optionalDependencies` (build path never imports it)
+- `src/extract/llm-extractor.ts` and all provider files marked `STANDALONE MODE ONLY` — never imported from the build path
+
+### Fixed
+- `--wiki-only` passed `null as LLMProvider` which crashed on any compilation — now correctly handled by nullable provider logic
+
 ## [3.0.3] - 2026-04-13
 
 ### Fixed

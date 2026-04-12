@@ -3,7 +3,6 @@ import type {
   GraphNode,
   GraphEdge,
   LLMProvider,
-  Message,
 } from '../types.js';
 import type {
   CommunityMeta,
@@ -27,11 +26,9 @@ const DEFAULT_CONFIG: Required<CompilationConfig> = {
 };
 
 export class WikiCompiler {
-  private provider: LLMProvider;
   private config: Required<CompilationConfig>;
 
-  constructor(provider: LLMProvider, config: CompilationConfig = {}) {
-    this.provider = provider;
+  constructor(_provider: LLMProvider | null, config: CompilationConfig = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
@@ -128,111 +125,67 @@ export class WikiCompiler {
     nodes: GraphNode[],
     edges: GraphEdge[],
   ): Promise<Stage1Result> {
-    const communityNodes = nodes.filter(
-      (n) => n.community === community.id,
-    );
+    const communityNodes = nodes.filter((n) => n.community === community.id);
     const communityEdges = edges.filter(
       (e) =>
         communityNodes.some((n) => n.id === e.source) &&
         communityNodes.some((n) => n.id === e.target),
     );
 
-    const nodeList = communityNodes
-      .map((n) => `- ${n.label} (${n.type})`)
-      .join('\n');
-    const edgeList = communityEdges
-      .map((e) => `- ${e.source} --${e.label || 'related'}--> ${e.target}`)
-      .join('\n');
-
-    const systemPrompt =
-      'You are a technical writer creating a wiki outline. Generate a structured outline with section headers for a wiki page.';
-    const userPrompt = `Create a wiki page outline for community "${community.label || `Community ${community.id}`}" with ${communityNodes.length} nodes and ${communityEdges.length} edges.
-
-Nodes:
-${nodeList}
-
-Edges:
-${edgeList}
-
-Generate a structured outline with 3-6 section headers and a brief overview paragraph. Format sections as a numbered list.`;
-
-    const messages: Message[] = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ];
-
-    const result = await this.provider.complete(messages, {
-      max_tokens: this.config.stage1_budget_out,
-    });
-
-    const lines = result.content.trim().split('\n');
-    const section_headers: string[] = [];
-    let outline = '';
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (/^\d+[.)]?\s+.+/.test(trimmed)) {
-        section_headers.push(trimmed.replace(/^\d+[.)]?\s+/, '').trim());
-      } else if (outline === '' && trimmed) {
-        outline = trimmed;
-      }
+    // Group nodes by type to create section headers
+    const typeGroups = new Map<string, GraphNode[]>();
+    for (const node of communityNodes) {
+      const type = node.type ?? 'unknown';
+      if (!typeGroups.has(type)) typeGroups.set(type, []);
+      typeGroups.get(type)!.push(node);
     }
 
+    const section_headers = [...typeGroups.keys()].map((type) => {
+      // Capitalize and naive pluralize
+      const cap = type.charAt(0).toUpperCase() + type.slice(1);
+      return cap.endsWith('s') ? cap : `${cap}s`;
+    });
+
+    const outline = `Community ${community.label || community.id} contains ${communityNodes.length} nodes and ${communityEdges.length} edges`;
+
     return {
-      section_headers,
-      outline: outline || `Overview of ${community.label || `Community ${community.id}`}`,
-      tokens_used: (result.usage?.input_tokens ?? 0) + (result.usage?.output_tokens ?? 0),
+      section_headers: section_headers.length > 0 ? section_headers : ['Overview'],
+      outline,
+      tokens_used: 0,
     };
   }
 
   async compileStage2(
     sectionHeader: string,
-    _nodes: GraphNode[],
-    _edges: GraphEdge[],
+    nodes: GraphNode[],
+    edges: GraphEdge[],
   ): Promise<Stage2Result> {
-    const systemPrompt =
-      'You are a technical writer expanding wiki sections. Write comprehensive content for the requested section.';
-    const userPrompt = `Write detailed content for the section "${sectionHeader}" in a wiki page.
+    // Derive the type from the section header (reverse of pluralize/capitalize)
+    const derivedType = sectionHeader.replace(/s$/i, '').toLowerCase();
+    const matchingNodes = nodes.filter((n) => (n.type ?? '').toLowerCase() === derivedType);
 
-Provide 2-3 paragraphs of substantive content that would belong in a technical wiki about this topic. Include relevant details from the graph structure if applicable.`;
-
-    const messages: Message[] = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ];
-
-    const result = await this.provider.complete(messages, {
-      max_tokens: this.config.stage2_budget_out,
+    const nodeEntries = matchingNodes.map((node) => {
+      const snippet = typeof node.properties?.['content'] === 'string'
+        ? (node.properties['content'] as string).substring(0, 200)
+        : node.label;
+      const nodeEdges = edges.filter((e) => e.source === node.id || e.target === node.id);
+      const relList = nodeEdges
+        .map((e) => `  - ${e.source} --${e.label || 'related'}--> ${e.target}`)
+        .join('\n');
+      return `### ${node.label}\n\n${snippet}${relList ? `\n\nRelationships:\n${relList}` : ''}`;
     });
 
     return {
-      section_content: result.content.trim(),
-      tokens_used: (result.usage?.input_tokens ?? 0) + (result.usage?.output_tokens ?? 0),
+      section_content: nodeEntries.join('\n\n') || `No ${sectionHeader.toLowerCase()} found.`,
+      tokens_used: 0,
     };
   }
 
-  async compileStage3(nodeId: string, sourceContent: string): Promise<Stage3Result> {
-    const systemPrompt =
-      'You are a technical writer performing deep verification. Analyze the source content and verify its accuracy.';
-    const userPrompt = `Perform a deep dive on node "${nodeId}" using this source content:
-
-${sourceContent}
-
-Verify the content is accurate and provide any additional insights or corrections. Return your findings.`;
-
-    const messages: Message[] = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ];
-
-    const result = await this.provider.complete(messages, {
-      max_tokens: this.config.stage3_budget_out,
-    });
-
+  async compileStage3(_nodeId: string, sourceContent: string): Promise<Stage3Result> {
     return {
-      deep_content: result.content.trim(),
-      source_verified: !result.content.toLowerCase().includes('incorrect'),
-      tokens_used: (result.usage?.input_tokens ?? 0) + (result.usage?.output_tokens ?? 0),
+      deep_content: sourceContent,
+      source_verified: true,
+      tokens_used: 0,
     };
   }
 

@@ -1,6 +1,16 @@
 // Anthropic provider for GraphWiki v2
 // Uses @anthropic-ai/sdk
 
+/**
+ * STANDALONE MODE ONLY — not used in skill mode.
+ *
+ * In skill mode, GraphWiki runs inside an LLM agent (Claude Code, Codex, Gemini).
+ * The agent IS the LLM. Making separate API calls is redundant.
+ *
+ * This module exists for standalone CLI usage where no agent is present
+ * and the user explicitly enables --api-mode (future feature).
+ */
+
 import Anthropic from '@anthropic-ai/sdk';
 import type { Message, CompletionOptions, CompletionResult } from '../types.js';
 import type { LLMProvider } from './provider.js';

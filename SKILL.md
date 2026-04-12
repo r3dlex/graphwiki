@@ -15,6 +15,9 @@ You have access to the GraphWiki knowledge graph for persistent, token-efficient
 2. **Tiered Protocol** — Manual protocol: graph overview → paths → wiki index → wiki pages → raw files
 3. **Token Tracking** — Hook tracks spend vs. 150K session budget (warns at 80%)
 4. **Zero-Cost Lookup** — `graphwiki path` structural queries use 0 LLM tokens
+5. **Extraction Prompts** — For non-code files (PDFs, images), graphwiki generates
+   .md prompts in `.graphwiki/pending/`. Read each prompt, extract the requested
+   knowledge, write the result JSON, then run `graphwiki build . --update` to merge.
 
 ## Quick Start
 
