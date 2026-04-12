@@ -1,5 +1,13 @@
 {
   "version": "2.0",
+  "paths": {
+    "graph": ".graphwiki/graph.json",
+    "wiki": ".graphwiki/wiki",
+    "deltas": "graphwiki-out/deltas",
+    "report": "graphwiki-out/GRAPH_REPORT.md",
+    "svg": "graphwiki-out/graph.svg",
+    "driftLog": "graphwiki-out/drift.log"
+  },
   "provider": "anthropic",
   "provider_config": {
     "model": "claude-sonnet-4-20250514",
@@ -40,6 +48,7 @@
     "max_scoped_runs": 20
   },
   "wiki": {
+    "format": "obsidian",
     "max_tokens_per_page": 5000,
     "stage2_threshold_nodes": 15,
     "compilation_budget": 100000,
