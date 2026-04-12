@@ -301,7 +301,8 @@ jobs:
             p.publishConfig = { registry: 'https://npm.pkg.github.com', access: 'public' };
             fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
           "
-          echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" >> ~/.npmrc
+          # setup-node writes its npmrc to NPM_CONFIG_USERCONFIG, not ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" >> "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
 
           pnpm publish --no-git-checks --tag "$TAG" || {
             EC=$?
