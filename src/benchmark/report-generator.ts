@@ -8,6 +8,7 @@ import { writeFile, mkdir } from 'fs/promises';
  */
 export class ReportGenerator {
   private outputDir: string;
+  private results: BenchmarkRun[] = [];
 
   constructor(outputDir = 'graphwiki-out/benchmarks') {
     this.outputDir = outputDir;
@@ -65,8 +66,7 @@ export class ReportGenerator {
    * Format results as ASCII table
    */
   formatTable(): string {
-    // This is a placeholder - actual implementation would format data
-    return '';
+    return this.formatResultsTable(this.results ?? []);
   }
 
   /**

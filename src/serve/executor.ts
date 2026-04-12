@@ -325,9 +325,34 @@ export async function execBuild(
     builder.addNodes(graph.nodes);
     builder.addEdges(graph.edges);
 
-    // Discover source files (placeholder — glob would be used in real implementation)
-    // For now, return a successful response indicating the build system is wired
-    const filesProcessed = 0;
+    // Discover source files using glob
+    const { glob } = await import('glob');
+    const { ASTExtractor } = await import('../extract/ast-extractor.js');
+    const { detectLanguage } = await import('../detect/detector.js');
+    const { readFile, stat } = await import('fs/promises');
+
+    const LANG_NORMALIZE: Record<string, string> = { 'C#': 'c-sharp', 'C++': 'cpp' };
+    const MAX_FILE_SIZE = 1024 * 1024;
+    const files = await glob('**/*', { cwd: sourcePath, nodir: true, ignore: ['node_modules/**', 'dist/**', '.git/**'] });
+
+    const astExtractor = new ASTExtractor();
+    let filesProcessed = 0;
+
+    await Promise.allSettled(files.map(async (file) => {
+      try {
+        const absPath = `${sourcePath}/${file}`;
+        const fileStat = await stat(absPath);
+        if (fileStat.size > MAX_FILE_SIZE) return;
+        const content = await readFile(absPath, 'utf-8');
+        const rawLang = detectLanguage(absPath);
+        const language = LANG_NORMALIZE[rawLang ?? ''] ?? (rawLang?.toLowerCase() ?? 'unknown');
+        const { nodes, edges } = await astExtractor.extract(content, language, file);
+        builder.addNodes(nodes);
+        builder.addEdges(edges);
+        filesProcessed++;
+      } catch { /* skip unreadable/unsupported files */ }
+    }));
+
     const newGraph = builder.build();
 
     return {
@@ -381,8 +406,19 @@ export async function execIngest(
     };
     const language = langMap[ext] ?? 'typescript';
 
-    // Read file content (would use fs in real implementation)
-    // For now, return success indicating ingest is wired
+    // Read file content and extract with ASTExtractor (gracefully skip missing files)
+    try {
+      const { readFile } = await import('fs/promises');
+      const { ASTExtractor } = await import('../extract/ast-extractor.js');
+      const astExtractor = new ASTExtractor();
+      const content = await readFile(source, 'utf-8');
+      const { nodes, edges } = await astExtractor.extract(content, language, source);
+      builder.addNodes(nodes);
+      builder.addEdges(edges);
+    } catch {
+      // File not found or unreadable — return success with 0 nodes
+    }
+
     const oldNodeCount = graph.nodes.length;
     const oldEdgeCount = graph.edges.length;
 

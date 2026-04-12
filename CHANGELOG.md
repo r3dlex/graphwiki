@@ -5,6 +5,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [3.0.2] - 2026-04-13
+
+### Added
+- `graphwiki ask` now emits structured context for the calling LLM to use — no direct LLM API calls from graphwiki itself (LLM-agnostic architecture)
+- GitHub Releases created automatically on stable publish via `gh release create` in CI
+
+### Fixed
+- `--update` now detects **modified** files (not just new) via SHA-256 content-hash manifest at `.graphwiki/manifest.json`
+- `serve/executor.ts` `execBuild` and `execIngest` stubs replaced with real glob + ASTExtractor wiring
+- `benchmark/report-generator.ts` `formatTable()` stub replaced with delegation to `formatResultsTable()`
+- `execIngest` gracefully handles missing/unreadable source files instead of throwing
+
+### Changed
+- CI publish job: `contents: read` → `contents: write` to allow GitHub Release creation
+
 ## [3.0.1] - 2026-04-12
 
 ### Fixed

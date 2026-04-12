@@ -378,20 +378,47 @@ program
           logPath: config.paths.driftLog,
         });
 
-        // Incremental: only extract files not already in the graph (by provenance)
-        const existingFiles = new Set(
-          oldGraph.nodes.flatMap(n => n.provenance ?? []).filter(Boolean)
-        );
-        const newFiles = discovered.filter(f => !existingFiles.has(f));
+        // Load manifest for content-hash-based change detection
+        const manifestPath = `${graphwikiDir}/manifest.json`;
+        let manifest: Record<string, string> = {};
+        if (existsSync(manifestPath)) {
+          try {
+            manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+          } catch { manifest = {}; }
+        }
 
-        if (newFiles.length > 0) {
-          console.log(`[GraphWiki] Incremental: extracting ${newFiles.length} new files...`);
-          const newGraph = await extractGraph(newFiles, path);
-          // Merge new nodes/edges into finalGraph
+        // Use content hashing to detect both new and modified files
+        const { createHash } = await import('crypto');
+        const filesToExtract: string[] = [];
+        const newManifest: Record<string, string> = { ...manifest };
+
+        await Promise.all(discovered.map(async (file) => {
+          try {
+            const absPath = join(path, file);
+            const content = await readFile(absPath, 'utf-8');
+            const hash = createHash('sha256').update(content).digest('hex').slice(0, 16);
+            if (manifest[file] !== hash) {
+              filesToExtract.push(file);
+              newManifest[file] = hash;
+            }
+          } catch { /* skip unreadable files */ }
+        }));
+
+        if (filesToExtract.length > 0) {
+          const isNew = (f: string) => !manifest[f];
+          const newCount = filesToExtract.filter(isNew).length;
+          const modCount = filesToExtract.length - newCount;
+          console.log(`[GraphWiki] Incremental: extracting ${newCount} new + ${modCount} modified files...`);
+          const newGraph = await extractGraph(filesToExtract, path);
+          // Remove stale nodes for modified files, then merge
+          const modifiedSet = new Set(filesToExtract.filter(f => !isNew(f)));
           finalGraph = {
             ...finalGraph,
-            nodes: [...finalGraph.nodes, ...newGraph.nodes],
-            edges: [...finalGraph.edges, ...newGraph.edges],
+            nodes: [...finalGraph.nodes.filter(n => !modifiedSet.has(n.source_file ?? '')), ...newGraph.nodes],
+            edges: [...finalGraph.edges.filter(e => {
+              const src = finalGraph.nodes.find(n => n.id === e.source);
+              return !modifiedSet.has(src?.source_file ?? '');
+            }), ...newGraph.edges],
             metadata: finalGraph.metadata,
           };
         }
@@ -402,6 +429,9 @@ program
           console.log(`[GraphWiki] Delta: ${delta.added.nodes.length} added, ${delta.removed.nodes.length} removed, ${delta.modified.length} modified`);
           console.log(`[GraphWiki] DriftDetector initialized (run count: ${_driftDetector.getRunCount()})`);
         }
+
+        // Update manifest after successful extraction
+        await writeFile(manifestPath, JSON.stringify(newManifest, null, 2), 'utf-8');
       }
 
       // --wiki-only: skip extraction, recompile wiki from existing graph
@@ -710,12 +740,74 @@ program
     const config = await loadConfig();
     const graph = await loadGraph(config.paths.graph);
 
-    console.log(`[GraphWiki] Loading graph context (tier 1)...`);
-    console.log(`[GraphWiki] Searching relevant nodes...`);
+    const keywords = question.toLowerCase().split(/\W+/).filter(w => w.length > 2);
 
-    console.log('\n[Answer] (Placeholder - LLM integration required)');
-    console.log(`Based on the knowledge graph containing ${graph.nodes.length} nodes,`);
-    console.log(`here is what I found related to: "${question}"`);
+    // Find relevant nodes by keyword matching on label and properties
+    const relevantNodes = graph.nodes
+      .map(node => {
+        const text = `${node.label} ${node.type} ${String(node.properties?.['content'] ?? '')}`.toLowerCase();
+        const score = keywords.filter(kw => text.includes(kw)).length;
+        return { node, score };
+      })
+      .filter(({ score }) => score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10)
+      .map(({ node }) => node);
+
+    // Collect BFS neighbors (depth 2) from top matches
+    const { bfs } = await import('./graph/traversal.js');
+    const neighborSet = new Map<string, import('./types.js').GraphNode>();
+    for (const node of relevantNodes.slice(0, 3)) {
+      for (const n of bfs(graph, node.id, 2)) {
+        neighborSet.set(n.id, n);
+      }
+    }
+
+    // Collect relevant edges between found nodes
+    const nodeIds = new Set([...relevantNodes.map(n => n.id), ...neighborSet.keys()]);
+    const relevantEdges = graph.edges
+      .filter(e => nodeIds.has(e.source) && nodeIds.has(e.target))
+      .slice(0, 20);
+
+    // Check for wiki pages matching node labels
+    const wikiDir = config.paths.wiki ?? 'wiki';
+    const wikiRefs: string[] = [];
+    if (existsSync(wikiDir)) {
+      const { readdir } = await import('fs/promises');
+      const wikiFiles = await readdir(wikiDir).catch(() => [] as string[]);
+      for (const node of relevantNodes.slice(0, 5)) {
+        const slug = node.label.toLowerCase().replace(/\W+/g, '-');
+        const match = wikiFiles.find(f => f.includes(slug));
+        if (match) wikiRefs.push(`${wikiDir}/${match}`);
+      }
+    }
+
+    // Output structured context for the calling LLM to use
+    const lines: string[] = [
+      `[GraphWiki Context for: "${question}"]`,
+      '',
+      `## Relevant Nodes (${relevantNodes.length} found)`,
+    ];
+    for (const node of relevantNodes) {
+      const desc = node.properties?.['content'] ? `: ${String(node.properties['content']).slice(0, 120)}` : '';
+      lines.push(`- ${node.label} (${node.type})${desc}`);
+    }
+    if (relevantEdges.length > 0) {
+      lines.push('', '## Graph Relationships');
+      for (const edge of relevantEdges) {
+        const src = graph.nodes.find(n => n.id === edge.source)?.label ?? edge.source;
+        const tgt = graph.nodes.find(n => n.id === edge.target)?.label ?? edge.target;
+        lines.push(`- ${src} → ${edge.label ?? 'relates_to'} → ${tgt}`);
+      }
+    }
+    if (wikiRefs.length > 0) {
+      lines.push('', '## Wiki References');
+      for (const ref of wikiRefs) lines.push(`- ${ref}`);
+    }
+    lines.push('', `[End Context — use above to answer: "${question}"]`);
+
+    console.log(lines.join('\n'));
+    console.log('\n[GraphWiki] Context preparation complete. Use the above context to answer the question.');
   });
 
 // Ingest command
