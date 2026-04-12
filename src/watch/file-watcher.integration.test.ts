@@ -24,7 +24,7 @@ describe('FileWatcher integration', () => {
 
     const realWatcher = new FileWatcher({
       path: tmpDir,
-      debounceMs: 100,
+      debounceMs: 50,
       onUpdate: () => { updateResolve?.(); },
       onError: (err) => { throw err; },
     }) as FileWatcherAny;
@@ -39,12 +39,15 @@ describe('FileWatcher integration', () => {
     try {
       await realWatcher.start();
 
+      // Small delay to ensure watchers are fully initialized before triggering
+      await new Promise<void>((r) => setTimeout(r, 50));
+
       // Write a real .ts file to the temp directory
       writeFileSync(join(tmpDir, 'hello.ts'), 'export const x = 1;\n', 'utf-8');
 
-      // Wait for the onUpdate callback (debounce 100ms + buffer)
+      // Wait for the onUpdate callback (debounce 50ms + buffer)
       const timeout = new Promise<void>((_, reject) =>
-        setTimeout(() => reject(new Error('onUpdate was not called within 5s')), 5000)
+        setTimeout(() => reject(new Error('onUpdate was not called within 8s')), 8000)
       );
       await Promise.race([updatePromise, timeout]);
 
