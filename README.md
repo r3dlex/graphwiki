@@ -2,7 +2,7 @@
 
 ![Banner](assets/banner.png)
 
-> **LLM knowledge graph with persistent wiki compilation** — TypeScript, 703 tests (80% line coverage), dual-transport MCP
+> **LLM knowledge graph with persistent wiki compilation** — TypeScript, 784 tests (84% line coverage), dual-transport MCP
 
 ---
 
@@ -13,7 +13,7 @@
 - **Dual-Transport MCP** — stdio + HTTP servers for Claude Code integration
 - **Context Loading Protocol** — token-efficient retrieval with tiered loading
 - **AST + Embedding Deduplication** — no redundant LLM calls
-- **TDD 90% lines / 85% branches / 80% functions** — 703 tests across 59 test files
+- **80%+ lines / branches / functions / statements** — 784 tests across 66 test files
 
 ---
 
@@ -99,7 +99,11 @@ When the PreToolUse hook provides insufficient context, follow this manual proto
 | `graphwiki hook install` | Install hooks for Claude Code integration |
 | `graphwiki hook uninstall` | Uninstall hooks |
 | `graphwiki hook status` | Check hook installation status |
+| `graphwiki skill install [--platform <name>]` | Install skill for current platform |
+| `graphwiki skill generate [--check]` | Generate platform-specific skill files |
 | `graphwiki skill uninstall --all` | Remove all skill installations |
+| `graphwiki lint --spec-drift` | Check exported functions against spec/ |
+| `graphwiki build . --neo4j-verify` | Verify Neo4j push matches graph counts |
 
 ---
 
@@ -307,7 +311,7 @@ pnpm run test:watch
 | `util/` | hash, frontmatter, token-estimator |
 | `wiki/` | compiler, index-generator, wiki-graph-map, linter, updater |
 
-**41 test files — 409 tests — all passing**
+**66 test files — 784 tests — all passing**
 
 ---
 
@@ -319,15 +323,20 @@ graphwiki-skill/
 │   ├── benchmark/       # Token measurement and reporting
 │   ├── detect/          # Language/directory detection
 │   ├── dedup/           # Embedding + AST deduplication
-│   ├── extract/         # LLM extraction, caching, batching
+│   ├── export/          # GraphML, HTML, Neo4j, Obsidian canvas
+│   ├── extract/         # LLM extraction, caching, batching, deep mode
 │   ├── graph/           # Graph builder, cluster, traversal, drift
+│   ├── hooks/           # PreToolUse, git-hooks, skill installer
 │   ├── providers/       # Anthropic, OpenAI, Google AI
 │   ├── query/           # Router + cache
 │   ├── refine/          # Reviser, ratchet, tracer, diagnostician
 │   ├── report/          # Community summary, reporter
 │   ├── serve/           # MCP stdio + HTTP servers
-│   ├── util/            # Frontmatter, hash, token estimation
+│   ├── util/            # Frontmatter, hash, token estimation, ignore-resolver
+│   ├── watch/           # File watcher with debounce
 │   └── wiki/            # Compiler, index, linter, wiki-graph map
+├── spec/                # Module specs (17 spec files)
+├── references/          # Supplementary docs for SKILL.md
 ├── graphwiki-out/       # Built knowledge graph
 ├── wiki/                # Compiled wiki pages
 └── raw/                 # Source files (immutable)

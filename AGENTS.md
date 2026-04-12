@@ -1,6 +1,29 @@
+<!-- Parent: CLAUDE.md -->
+<!-- Generated: 2026-04-12 | Updated: 2026-04-12 -->
+
 # GraphWiki Agents
 
-This document describes the agent system used in the GraphWiki project.
+## Purpose
+
+This document is the primary context reference for AI agents working in the GraphWiki project. It defines the context-loading protocol, available CLI commands, hook integration details, project conventions, and hard constraints. Read this before any other file to understand how to navigate the codebase efficiently.
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `AGENTS.md` | This file — agent context protocol, commands, conventions |
+| `CLAUDE.md` | Project-level Claude Code instructions |
+| `SKILL.md` | Canonical skill definition (source for all SKILL-*.md) |
+| `src/cli.ts` | Commander-based CLI entry point |
+| `src/graph/traversal.ts` | BFS/DFS/shortestPath with directed graph support |
+| `src/wiki/compiler.ts` | Wiki compilation — wikilinks, YAML frontmatter, Obsidian canvas |
+| `src/hooks/skill-installer.ts` | Platform skill install/uninstall, hook registration |
+| `src/util/ignore-resolver.ts` | `resolveIgnores()` / `resolveIgnoresSplit()` — extraction vs. output ignores |
+| `src/extract/llm-extractor.ts` | LLM extraction with standard and deep mode |
+| `src/export/neo4j-push.ts` | Neo4j export with `verifyNeo4jPush()` |
+| `scripts/graphwiki-pretool.mjs` | PreToolUse hook — auto context injection |
+| `scripts/graphwiki-session-start.mjs` | SessionStart hook |
+| `scripts/graphwiki-posttool.mjs` | PostToolUse hook — git commit trigger |
 
 ## What is GraphWiki?
 
@@ -25,6 +48,7 @@ Step 5: Read `raw/` files ONLY IF:
 
 ## Commands
 
+```bash
 graphwiki build . --update          # Incremental rebuild after file changes
 graphwiki build . --resume          # Resume a crashed/interrupted build
 graphwiki build . --permissive      # Allow coerced extraction results
@@ -35,6 +59,7 @@ graphwiki query "question"          # Ask the knowledge base
 graphwiki path <nodeA> <nodeB>      # Find shortest path between graph nodes
 graphwiki add <url>                 # Add a URL source to the graph
 graphwiki lint                      # Health check for contradictions
+graphwiki lint --spec-drift         # Check exported functions against spec/
 graphwiki status                    # Stats and drift score
 graphwiki ingest <file>             # Process a new source file (PDF, code, doc)
 graphwiki benchmark "question"      # Measure token usage for this query
@@ -47,6 +72,7 @@ graphwiki hook status               # Check hook installation status
 graphwiki skill install [--platform <name>]  # Install skill for current platform
 graphwiki skill generate [--check]           # Generate platform-specific skill files
 graphwiki skill uninstall --all              # Remove all skill installations
+```
 
 ## Wiki Page Format
 
@@ -59,16 +85,6 @@ Every page in wiki/ has YAML frontmatter:
 - related: list of [[wiki-links]] to other pages
 - confidence: high | medium | low
 - content_hash: for diff-based updates
-
-## Rules
-
-1. Always load context through the graph, not by reading files directly.
-2. File query results back into wiki/ as new pages when they add knowledge.
-3. When you update a wiki page, update its content_hash and updated date.
-4. Never modify files in raw/. They are immutable sources.
-5. Run graphwiki lint after major changes to catch contradictions.
-
----
 
 ## Agent Role Matrix
 
@@ -112,8 +128,8 @@ Before every tool use, the PreToolUse hook automatically:
 
 1. Extracts entities from tool input (file paths, CamelCase identifiers, query terms)
 2. Routes to the appropriate graph query:
-   - **Read / Grep / Glob** -> `graphwiki path <term1> <term2>` (0 LLM tokens)
-   - **Ask / Query** -> `graphwiki query "<question>"` (loads wiki pages)
+   - **Read / Grep / Glob** → `graphwiki path <term1> <term2>` (0 LLM tokens)
+   - **Ask / Query** → `graphwiki query "<question>"` (loads wiki pages)
 3. Writes context to session state for the agent to consume
 4. Tracks token budget (warns at 80% of 150K tokens)
 5. Gracefully degrades if graphwiki CLI is unavailable
@@ -132,19 +148,18 @@ Hook scripts write JSON responses to stdout:
 { "continue": true, "suppressOutput": true }
 ```
 
-## Project Conventions
+## For AI Agents
 
 ### Test Patterns
 
 - Unit tests in `*.test.ts` files co-located with source
-- Integration tests in `tests/integration/`
+- Integration tests in `tests/integration/` and `src/**/*.integration.test.ts`
 - Benchmark tests in `tests/benchmark/`
-- Use Vitest for test execution
+- Use Vitest for test execution (`pnpm test`)
 
 ### Coverage Thresholds
 
-- Lines: 90%+
-- Branches: 85%+
+All four metrics must stay at **80%+** (lines, branches, functions, statements).
 
 ### File Organization
 
@@ -156,7 +171,7 @@ src/
   dedup/        - Deduplication logic
   export/       - Export formats (GraphML, HTML, Neo4j, Obsidian)
   extract/      - LLM extraction and AST extraction
-  graph/        - Graph building, clustering, delta detection
+  graph/        - Graph building, clustering, delta detection, traversal
   hooks/        - PreToolUse, git-hooks, skill installer
   providers/    - LLM provider integrations (Anthropic, OpenAI, Google)
   query/        - Query routing and caching
@@ -164,32 +179,40 @@ src/
   report/       - Community summary and reporting
   serve/        - MCP server (HTTP and stdio)
   types.ts      - Shared type definitions
-  util/         - Utilities (frontmatter, hash, math, token estimation)
+  util/         - Utilities (frontmatter, hash, math, token estimation, ignore-resolver)
   wiki/         - Wiki compilation and linting
+  watch/        - File watcher with debounce and chokidar integration
 
 scripts/
   graphwiki-pretool.mjs        - PreToolUse hook
   graphwiki-session-start.mjs  - SessionStart hook
-  graphwiki-posttool.mjs        - PostToolUse hook (git commit trigger)
+  graphwiki-posttool.mjs       - PostToolUse hook (git commit trigger)
 
+spec/            - Spec files for all major modules (17 specs)
+references/      - Supplementary docs for SKILL.md (commands, hooks, platforms, protocol)
 graphwiki-out/   - Auto-generated graph output
 wiki/            - Compiled wiki pages
 raw/             - Immutable source files (NEVER modify)
 ```
 
-## Hard Constraints
+### Hard Constraints
 
-- **NEVER modify** `raw/` -- immutable source files
-- **NEVER modify** `graphwiki-out/` -- auto-generated output
+- **NEVER modify** `raw/` — immutable source files
+- **NEVER modify** `graphwiki-out/` — auto-generated output
 - **Maximum 3 wiki pages** per query (token budget)
-- **Protocol order** -- Steps 1-5 required for manual context loading
+- **Protocol order** — Steps 1-5 required for manual context loading
+- **SKILL-*.md files are generated** — edit `SKILL.md`, not the generated files
 
-## Platform Support
+### Platform Support
 
 - **Claude Code:** `graphwiki skill install --platform claude`
 - **Codex:** `graphwiki skill install --platform codex`
 - **Gemini:** `graphwiki skill install --platform gemini`
 - **Cursor:** `graphwiki skill install --platform cursor`
 - **OpenClaw:** `graphwiki skill install --platform openclaw`
+- **OpenCode:** `graphwiki skill install --platform opencode`
+- **Aider:** `graphwiki skill install --platform aider`
+- **Droid:** `graphwiki skill install --platform droid`
+- **Trae / Trae-CN:** `graphwiki skill install --platform trae` / `trae-cn`
 - **GitHub Copilot:** copy SKILL-copilot.md to `.github/copilot/`
-- **Auggie:** Research pending -- **excluded from v2**. Auggie's hook API is undocumented and requires separate research before integration.
+- **Auggie:** `graphwiki skill install --platform auggie`
