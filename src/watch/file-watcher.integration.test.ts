@@ -12,8 +12,8 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { FileWatcher } from './file-watcher.js';
 
-// FileWatcher.onEvent is private; cast via any to access it in the integration test.
-type FileWatcherAny = FileWatcher & { onEvent: (event: string, file: string) => void };
+// FileWatcher.onEvent is private; cast through unknown to access it in the integration test.
+type FileWatcherAny = { onEvent: (event: string, file: string) => void; start(): Promise<void>; stop(): Promise<void> };
 
 describe('FileWatcher integration', () => {
   it('fires onUpdate when a .ts file is written to a real temp directory', async () => {
@@ -27,7 +27,7 @@ describe('FileWatcher integration', () => {
       debounceMs: 50,
       onUpdate: () => { updateResolve?.(); },
       onError: (err) => { throw err; },
-    }) as FileWatcherAny;
+    }) as unknown as FileWatcherAny;
 
     // Use native fs.watch to observe the real file write, then forward to onEvent
     const nativeWatcher = fsWatch(tmpDir, { recursive: false }, (_event, filename) => {

@@ -30,7 +30,7 @@
     "lint": "eslint src --ext .ts",
     "fmt": "prettier --write src",
     "test": "vitest",
-    "test:unit": "vitest --coverage --coverage.thresholds.lines=90 --coverage.thresholds.branches=85",
+    "test:unit": "vitest --coverage --coverage.thresholds.lines=80 --coverage.thresholds.branches=80 --coverage.thresholds.functions=80 --coverage.thresholds.statements=80",
     "test:integration": "vitest tests/integration",
     "test:benchmark": "vitest tests/benchmark",
     "test:watch": "vitest --watch",

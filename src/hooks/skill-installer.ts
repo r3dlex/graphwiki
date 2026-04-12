@@ -734,7 +734,7 @@ export async function uninstallSkill(platform: Platform): Promise<void> {
         trae: join(process.cwd(), '.trae'),
         'trae-cn': join(process.cwd(), '.trae'),
       };
-      const agentsMd = join(baseDirs[platform], 'AGENTS.md');
+      const agentsMd = join(baseDirs[platform] ?? process.cwd(), 'AGENTS.md');
       if (await fileExists(agentsMd)) {
         const content = await readFile(agentsMd, 'utf-8');
         // Remove section between <!-- graphwiki-start --> and <!-- graphwiki-end --> if present

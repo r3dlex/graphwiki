@@ -148,11 +148,11 @@ describe("LLMExtractor", () => {
   it("deep mode uses a different (more aggressive) prompt than standard mode", async () => {
     const capturedMessages: Array<Array<{ role: string; content: string }>> = [];
     const capturingProvider: LLMProvider = {
-      complete: async (messages) => {
+      complete: async (messages: unknown[]) => {
         capturedMessages.push(messages as Array<{ role: string; content: string }>);
         return { content: JSON.stringify(validDoc) };
       },
-      completeMessages: async (messages) => {
+      completeMessages: async (messages: unknown[]) => {
         capturedMessages.push(messages as Array<{ role: string; content: string }>);
         return { content: JSON.stringify(validDoc) };
       },
