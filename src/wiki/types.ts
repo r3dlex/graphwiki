@@ -55,6 +55,7 @@ export interface CompilationConfig {
   stage3_budget_out?: number;
   parallel_limit?: number;
   mode?: 'standard' | 'deep';
+  format?: 'obsidian' | 'plain';
 }
 
 // Query config for QueryRouter

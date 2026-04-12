@@ -23,6 +23,7 @@ const DEFAULT_CONFIG: Required<CompilationConfig> = {
   stage3_budget_out: 1000,
   parallel_limit: 3,
   mode: 'standard',
+  format: 'obsidian',
 };
 
 export class WikiCompiler {
@@ -52,7 +53,10 @@ export class WikiCompiler {
         const communityNodes = nodes.filter((n) => n.community === community.id);
         for (const node of communityNodes) {
           const stage3 = await this.compileStage3(node.id, node.label);
-          sectionContent.push(`\n### [[${node.label}]]\n\n${stage3.deep_content}`);
+          const nodeLink = (this.config.format ?? 'obsidian') === 'plain'
+            ? `[${node.label}](${node.label.replace(/\s+/g, '-').toLowerCase()}.md)`
+            : `[[${node.label}]]`;
+          sectionContent.push(`\n### ${nodeLink}\n\n${stage3.deep_content}`);
         }
       }
 
@@ -62,7 +66,12 @@ export class WikiCompiler {
     // Build wikilinks for related nodes in this community
     const communityNodes = nodes.filter((n) => n.community === community.id);
     const relatedLinks = communityNodes
-      .map((n) => `- [[${n.label}]]`)
+      .map((n) => {
+        const link = (this.config.format ?? 'obsidian') === 'plain'
+          ? `[${n.label}](${n.label.replace(/\s+/g, '-').toLowerCase()}.md)`
+          : `[[${n.label}]]`;
+        return `- ${link}`;
+      })
       .join('\n');
     const relatedSection = communityNodes.length > 0
       ? `\n\n## Related\n\n${relatedLinks}`
