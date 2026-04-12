@@ -4,6 +4,8 @@
 
 > **LLM knowledge graph with persistent wiki compilation** — TypeScript, 784 tests (84% line coverage), dual-transport MCP
 
+> **Sister project:** [graphify](https://github.com/safishamsi/graphify) — any input (code, docs, images) → knowledge graph → clustered communities → HTML + JSON
+
 ---
 
 ## Features
