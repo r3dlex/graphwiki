@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [3.0.3] - 2026-04-13
+
+### Fixed
+- TypeScript typecheck: non-null assertion on `onUpdate.mock.calls[0]` in `file-watcher.test.ts` (TS2532) — `pnpm typecheck` now exits 0
+
 ## [3.0.2] - 2026-04-13
 
 ### Added
