@@ -31,5 +31,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate skill files
+        run: pnpm run generate:skills
+
       - name: Check skill files match SKILL.md
         run: node --import tsx/esm src/hooks/skill-generator.ts --check
