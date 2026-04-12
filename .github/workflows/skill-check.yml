@@ -11,6 +11,7 @@ on:
       - 'SKILL.md'
       - 'SKILL-*.md'
       - 'src/hooks/skill-generator.ts'
+  workflow_dispatch:
 
 jobs:
   skill-check:
