@@ -324,6 +324,24 @@ program
       // Load existing graph
       const oldGraph = await loadGraph(config.paths.graph);
 
+      // Auto-scaffold .graphwikiignore on first build
+      const graphwikiignorePath = join(path, '.graphwikiignore');
+      if (!existsSync(graphwikiignorePath)) {
+        const defaultIgnorePatterns = [
+          'node_modules/',
+          'dist/',
+          '.git/',
+          'coverage/',
+          '*.log',
+          '*.lock',
+          '.DS_Store',
+          'graphwiki-out/',
+          '.graphwiki/',
+        ].join('\n') + '\n';
+        writeFileSync(graphwikiignorePath, defaultIgnorePatterns, 'utf-8');
+        console.log('Created .graphwikiignore with default patterns');
+      }
+
       // Count source files
       let fileCount = 0;
       const { extractionIgnores, outputIgnores } = await resolveIgnoresSplit(path);
@@ -501,7 +519,7 @@ program
         console.log('[GraphWiki] --wiki-only: recompiling wiki from existing graph (skipping extraction)...');
         const { WikiUpdater } = await import('./wiki/updater.js');
         const { WikiCompiler } = await import('./wiki/compiler.js');
-        const provider = null as unknown as import('./types.js').LLMProvider; // no LLM needed for recompile
+        const provider = null;
         const compiler = new WikiCompiler(provider, {
           mode: options.mode ?? 'standard',
           format: config.wiki.format,
@@ -633,7 +651,7 @@ program
         console.log('[GraphWiki] Compiling wiki...');
         const { WikiUpdater } = await import('./wiki/updater.js');
         const { WikiCompiler } = await import('./wiki/compiler.js');
-        const provider = null as unknown as import('./types.js').LLMProvider;
+        const provider = null;
         const compiler = new WikiCompiler(provider, {
           mode: options.mode ?? 'standard',
           format: config.wiki.format,
@@ -1679,6 +1697,8 @@ platformCmd('aider', 'Aider platform skill commands');
 platformCmd('droid', 'Factory Droid platform skill commands', true);
 platformCmd('trae', 'Trae platform skill commands');
 platformCmd('trae-cn', 'Trae CN platform skill commands');
+platformCmd('antigravity', 'Antigravity platform skill commands');
+platformCmd('hermes', 'Hermes platform skill commands');
 
 // Export command
 program
@@ -1841,6 +1861,69 @@ program
       console.error(`[GraphWiki] Error: ${err}`);
       process.exit(1);
     }
+  });
+
+// Save-result command (memory feedback loop)
+program
+  .command('save-result')
+  .description('Merge an LLM result JSON into the graph and archive the prompt file')
+  .argument('<promptFile>', 'Path to the prompt file in .graphwiki/pending/')
+  .argument('<resultFile>', 'Path to the result JSON file ({ nodes, edges })')
+  .action(async (promptFile: string, resultFile: string) => {
+    const config = await loadConfig();
+
+    // Read result file
+    let result: { nodes: GraphDocument['nodes']; edges: GraphDocument['edges'] };
+    try {
+      const raw = await readFile(resultFile, 'utf-8');
+      result = JSON.parse(raw) as typeof result;
+    } catch {
+      console.error(`[GraphWiki] Failed to read result file: ${resultFile}`);
+      process.exit(1);
+    }
+
+    const newNodes = result.nodes ?? [];
+    const newEdges = result.edges ?? [];
+
+    // Load existing graph
+    const graph = await loadGraph(config.paths.graph);
+
+    // Merge nodes (dedup by id)
+    const nodeIndex = new Map(graph.nodes.map(n => [n.id, n]));
+    for (const node of newNodes) {
+      if (!nodeIndex.has(node.id)) {
+        nodeIndex.set(node.id, node);
+      }
+    }
+    graph.nodes = [...nodeIndex.values()];
+
+    // Merge edges (dedup by source+target)
+    const edgeKey = (e: GraphDocument['edges'][0]) => `${e.source}:${e.target}`;
+    const edgeIndex = new Map(graph.edges.map(e => [edgeKey(e), e]));
+    for (const edge of newEdges) {
+      if (!edgeIndex.has(edgeKey(edge))) {
+        edgeIndex.set(edgeKey(edge), edge);
+      }
+    }
+    graph.edges = [...edgeIndex.values()];
+
+    // Save updated graph
+    await saveGraph(graph, config.paths.graph);
+
+    // Move prompt file to processed directory
+    const processedDir = '.graphwiki/processed';
+    mkdirSync(processedDir, { recursive: true });
+    const promptFileName = promptFile.split('/').pop() ?? promptFile;
+    const processedPath = join(processedDir, promptFileName);
+    try {
+      const promptContent = readFileSync(promptFile, 'utf-8');
+      writeFileSync(processedPath, promptContent, 'utf-8');
+      unlinkSync(promptFile);
+    } catch {
+      // Prompt file may not exist; not fatal
+    }
+
+    console.log(`Saved ${newNodes.length} nodes, ${newEdges.length} edges from result. Graph updated.`);
   });
 
 // ============================================================

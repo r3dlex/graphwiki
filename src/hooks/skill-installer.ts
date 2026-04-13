@@ -4,7 +4,7 @@
 import { writeFile, mkdir, readFile, access, stat, rm, unlink } from 'fs/promises';
 import { join, dirname } from 'path';
 
-export type Platform = 'claude' | 'codex' | 'auggie' | 'gemini' | 'cursor' | 'openclaw' | 'opencode' | 'aider' | 'droid' | 'trae' | 'trae-cn' | 'copilot';
+export type Platform = 'claude' | 'codex' | 'auggie' | 'gemini' | 'cursor' | 'openclaw' | 'opencode' | 'aider' | 'droid' | 'trae' | 'trae-cn' | 'copilot' | 'antigravity' | 'hermes';
 
 /**
  * Skill definition
@@ -177,6 +177,36 @@ GraphWiki hooks into Auggie via ~/.augment/settings.json for automatic context l
   copilot: {
     name: 'graphwiki',
     description: 'GraphWiki integration for GitHub Copilot',
+    prompt: `GraphWiki Knowledge Graph Integration
+
+**Purpose:** Navigate and query the GraphWiki knowledge base
+
+**Commands:**
+- graphwiki build . --update    # Incremental rebuild
+- graphwiki query "question"   # Ask questions
+- graphwiki status             # Show stats
+- graphwiki path <nodeA> <nodeB>  # Find path between nodes`,
+    tools: [],
+  },
+
+  antigravity: {
+    name: 'graphwiki',
+    description: 'GraphWiki integration for Antigravity',
+    prompt: `GraphWiki Knowledge Graph Integration
+
+**Purpose:** Navigate and query the GraphWiki knowledge base
+
+**Commands:**
+- graphwiki build . --update    # Incremental rebuild
+- graphwiki query "question"   # Ask questions
+- graphwiki status             # Show stats
+- graphwiki path <nodeA> <nodeB>  # Find path between nodes`,
+    tools: [],
+  },
+
+  hermes: {
+    name: 'graphwiki',
+    description: 'GraphWiki integration for Hermes',
     prompt: `GraphWiki Knowledge Graph Integration
 
 **Purpose:** Navigate and query the GraphWiki knowledge base
@@ -387,6 +417,20 @@ export async function detectPlatforms(): Promise<Platform[]> {
   if (await dirExists(join(home, '.copilot'))) detected.push('copilot' as Platform);
   if (await dirExists(join(home, '.droid'))) detected.push('droid');
   if (await dirExists(join(home, '.trae'))) detected.push('trae');
+  if (await dirExists(join(home, '.agent'))) detected.push('antigravity');
+  if (await dirExists(join(home, '.hermes'))) detected.push('hermes');
+
+  // Check for antigravity binary
+  try {
+    await access('/usr/local/bin/antigravity');
+    if (!detected.includes('antigravity')) detected.push('antigravity');
+  } catch {}
+
+  // Check for hermes binary
+  try {
+    await access('/usr/local/bin/hermes');
+    if (!detected.includes('hermes')) detected.push('hermes');
+  } catch {}
 
   // Aider: check for .aider.conf.yml or .aider* files in cwd
   try {
@@ -515,6 +559,22 @@ export async function installSkill(
       const base = installPath ?? join(process.env.HOME ?? '.', '.copilot');
       await installAgentsMdSkill('copilot', base);
       return join(base, 'AGENTS.md');
+    },
+
+    antigravity: async () => {
+      const base = installPath ?? join(process.env.HOME ?? '.', '.agent', 'skills');
+      const skill = SKILL_DEFINITIONS.antigravity;
+      await mkdir(base, { recursive: true });
+      await writeFile(join(base, 'graphwiki.md'), `# ${skill.name}\n\n${skill.description}\n\n${skill.prompt}`, 'utf-8');
+      return join(base, 'graphwiki.md');
+    },
+
+    hermes: async () => {
+      const base = installPath ?? join(process.env.HOME ?? '.', '.hermes', 'skills');
+      const skill = SKILL_DEFINITIONS.hermes;
+      await mkdir(base, { recursive: true });
+      await writeFile(join(base, 'graphwiki.md'), `# ${skill.name}\n\n${skill.description}\n\n${skill.prompt}`, 'utf-8');
+      return join(base, 'graphwiki.md');
     },
   };
 
@@ -795,6 +855,24 @@ export async function uninstallSkill(platform: Platform): Promise<void> {
       const skillDir = join(home, '.copilot', 'skills', 'graphwiki');
       await rm(skillDir, { recursive: true, force: true });
       console.log(`[GraphWiki] Removed copilot skill directory: ${skillDir}`);
+      break;
+    }
+
+    case 'antigravity': {
+      const filePath = join(home, '.agent', 'skills', 'graphwiki.md');
+      if (await fileExists(filePath)) {
+        await unlink(filePath);
+        console.log(`[GraphWiki] Removed antigravity skill: ${filePath}`);
+      }
+      break;
+    }
+
+    case 'hermes': {
+      const filePath = join(home, '.hermes', 'skills', 'graphwiki.md');
+      if (await fileExists(filePath)) {
+        await unlink(filePath);
+        console.log(`[GraphWiki] Removed hermes skill: ${filePath}`);
+      }
       break;
     }
 

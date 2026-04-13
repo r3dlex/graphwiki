@@ -5,6 +5,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [3.0.7] - 2026-04-13
+
+### Added
+- `trigger: /graphwiki` field added to SKILL.md frontmatter — registers `/graphwiki` as a Claude Code slash command
+- SKILL.md rewritten as a comprehensive instruction manual (~110 lines): invocation protocol, key commands table, context loading flowchart, pending extraction prompts, hard constraints, agent role matrix, and references
+- `antigravity` and `hermes` platform support: skill installer, generator, and CLI commands (`graphwiki antigravity install/uninstall`, `graphwiki hermes install/uninstall`)
+- `graphwiki save-result <promptFile> <resultFile>` command — merges agent extraction results back into the knowledge graph, moves prompt to `.graphwiki/processed/`
+- Auto-scaffold `.graphwikiignore` on first `graphwiki build` — creates file with sensible defaults if absent
+- `references/commands.md` updated with full command reference (all build flags, query, graph management, ingest, server, hooks, skill management, diagnostics)
+- `references/platform-install.md` updated with antigravity and hermes platform entries
+- `trigger` field preserved in all generated `SKILL-*.md` files across all 17 platforms
+
+### Fixed
+- `null as unknown as LLMProvider` casts in `src/cli.ts` replaced with plain `null` — no cast needed since constructors already accept `LLMProvider | null`
+
 ## [3.0.6] - 2026-04-13
 
 ### Changed

@@ -1,6 +1,6 @@
 # Platform-Specific Installation
 
-GraphWiki supports 12 platforms with platform-specific skill files and configuration.
+GraphWiki supports 14 platforms with platform-specific skill files and configuration.
 
 ## Quick Install Matrix
 
@@ -18,8 +18,10 @@ GraphWiki supports 12 platforms with platform-specific skill files and configura
 | Trae-CN | `graphwiki skill install --platform trae-cn` | `~/.trae-cn/config.json` | CN region variant |
 | Auggie | `graphwiki skill install --platform auggie` | `~/.augment/settings.json` | Custom hook format |
 | GitHub Copilot | Manual | `.github/copilot-instructions.md` | Copy SKILL-copilot.md |
+| Antigravity | `graphwiki skill install --platform antigravity` | `~/.agent/skills/graphwiki.md` | Installs to ~/.agent/skills/ |
+| Hermes | `graphwiki skill install --platform hermes` | `~/.hermes/skills/graphwiki.md` | Installs to ~/.hermes/skills/ |
 
-## Automated Install: Claude / Codex / Auggie
+## Automated Install: Claude / Codex / Auggie / Antigravity / Hermes
 
 For these platforms, the installer handles all setup:
 
@@ -30,6 +32,10 @@ graphwiki skill install --platform claude
 graphwiki skill install --platform codex
 # OR
 graphwiki skill install --platform auggie
+# OR
+graphwiki skill install --platform antigravity
+# OR
+graphwiki skill install --platform hermes
 ```
 
 The installer will:
@@ -145,6 +151,34 @@ cat ~/.claude/plugins/marketplaces/omc/hooks/hooks.json | grep graphwiki
 # Test hook execution
 graphwiki build . --update
 ```
+
+## Antigravity
+
+Antigravity is detected via `~/.agent/` directory or the `/usr/local/bin/antigravity` binary.
+
+```bash
+# Install
+graphwiki skill install --platform antigravity
+
+# Uninstall
+graphwiki skill uninstall --platform antigravity
+```
+
+The installer writes `~/.agent/skills/graphwiki.md` with the GraphWiki skill prompt.
+
+## Hermes
+
+Hermes is detected via `~/.hermes/` directory or the `/usr/local/bin/hermes` binary.
+
+```bash
+# Install
+graphwiki skill install --platform hermes
+
+# Uninstall
+graphwiki skill uninstall --platform hermes
+```
+
+The installer writes `~/.hermes/skills/graphwiki.md` with the GraphWiki skill prompt.
 
 ## Uninstalling
 

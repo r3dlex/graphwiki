@@ -8,7 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SKILL_MD_PATH = join(__dirname, '../../SKILL.md');
 const OUTPUT_DIR = join(__dirname, '../..');
 
-interface Frontmatter { name: string; version: string; description: string; platforms: string[] }
+interface Frontmatter { name: string; version: string; description: string; trigger?: string; platforms: string[] }
 interface ParsedSkill { frontmatter: Frontmatter; sections: Map<string, string>; rawContent: string }
 type OutputFormat = 'raw' | 'markdown' | 'plaintext' | 'json' | 'yaml';
 interface PlatformSpec {
@@ -37,6 +37,8 @@ const PLATFORM_SPECS: Record<string, PlatformSpec> = {
   droid:          { filename: 'SKILL-droid.md',          format: 'markdown' },
   trae:           { filename: 'SKILL-trae.md',           format: 'markdown' },
   'trae-cn':      { filename: 'SKILL-trae-cn.md',        format: 'markdown' },
+  antigravity:    { filename: 'SKILL-antigravity.md',    format: 'markdown' },
+  hermes:         { filename: 'SKILL-hermes.md',         format: 'markdown' },
 };
 
 export function parseFrontmatter(content: string): Frontmatter {
@@ -59,6 +61,7 @@ export function parseFrontmatter(content: string): Frontmatter {
     name: result['name'] as string ?? '',
     version: result['version'] as string ?? '',
     description: result['description'] as string ?? '',
+    trigger: result['trigger'] as string | undefined,
     platforms: (result['platforms'] as string[] | undefined) ?? [],
   };
 }
@@ -104,7 +107,8 @@ export function generate(parsed: ParsedSkill, platform: string): string {
       const ch = ov['Available Commands'] ?? 'Available Commands';
       const hh = ov['Hard Constraints'] ?? 'Hard Constraints';
       if (spec.emitFrontmatter !== false) {
-        return `---\nname: ${fm.name}\nversion: ${fm.version}\ndescription: ${fm.description}\nplatforms: [${fm.platforms.join(', ')}]\n---\n\n# ${fm.name}\n\n${fm.description}\n\n## Context Loading Protocol\n\n${protocol}\n\n## Available Commands\n\n${commands}\n\n## Hard Constraints\n\n${constraints}\n`;
+        const triggerLine = fm.trigger ? `trigger: ${fm.trigger}\n` : '';
+        return `---\nname: ${fm.name}\nversion: ${fm.version}\n${triggerLine}description: ${fm.description}\nplatforms: [${fm.platforms.join(', ')}]\n---\n\n# ${fm.name}\n\n${fm.description}\n\n## Context Loading Protocol\n\n${protocol}\n\n## Available Commands\n\n${commands}\n\n## Hard Constraints\n\n${constraints}\n`;
       }
       const title = platform === 'copilot'
         ? `# ${fm.name}\n\n${fm.description}\n\n`
@@ -124,11 +128,20 @@ export function generate(parsed: ParsedSkill, platform: string): string {
       return out;
     }
 
-    case 'json':
-      return JSON.stringify({ name: fm.name, version: fm.version, description: fm.description, contextLoadingProtocol: protocol, commands, hardConstraints: constraints, platforms: fm.platforms }, null, 2);
+    case 'json': {
+      const obj: Record<string, unknown> = { name: fm.name, version: fm.version, description: fm.description };
+      if (fm.trigger) obj['trigger'] = fm.trigger;
+      obj['contextLoadingProtocol'] = protocol;
+      obj['commands'] = commands;
+      obj['hardConstraints'] = constraints;
+      obj['platforms'] = fm.platforms;
+      return JSON.stringify(obj, null, 2);
+    }
 
-    case 'yaml':
-      return `name: ${fm.name}\nversion: ${fm.version}\ndescription: ${fm.description}\n\ncontext_loading_protocol: |\n${protocol.replace(/^/gm, '  ')}\n\ncommands: |\n${commands.replace(/^/gm, '  ')}\n\nhard_constraints: |\n${constraints.replace(/^/gm, '  ')}\n\nplatforms: [${fm.platforms.join(', ')}]\n`;
+    case 'yaml': {
+      const triggerLine = fm.trigger ? `trigger: ${fm.trigger}\n` : '';
+      return `name: ${fm.name}\nversion: ${fm.version}\n${triggerLine}description: ${fm.description}\n\ncontext_loading_protocol: |\n${protocol.replace(/^/gm, '  ')}\n\ncommands: |\n${commands.replace(/^/gm, '  ')}\n\nhard_constraints: |\n${constraints.replace(/^/gm, '  ')}\n\nplatforms: [${fm.platforms.join(', ')}]\n`;
+    }
   }
 }
 
