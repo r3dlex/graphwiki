@@ -1,4 +1,4 @@
-# GraphWiki
+# GraphWiki v3.0.8
 
 ![Banner](assets/banner.png)
 
@@ -15,6 +15,10 @@
 - **Dual-Transport MCP** — stdio + HTTP servers for Claude Code integration
 - **Context Loading Protocol** — token-efficient retrieval with tiered loading
 - **AST + Embedding Deduplication** — no redundant LLM calls
+- **/graphwiki Slash Command** — native Claude Code integration via slash command trigger
+- **Audit Trail** — append-only `log.md` timestamped entries for every build, query, and mutation
+- **Karpathy Memory Loop** — `save-result` command with `--question/--answer/--type/--nodes` flags for persistent Q&A patterns
+- **Security Module** — `validateUrl`, `sanitizePath`, `sanitizeLabel` on all user inputs; `validateUrl` wired into `graphwiki add`
 - **80%+ lines / branches / functions / statements** — 784 tests across 66 test files
 
 ---
@@ -62,6 +66,28 @@ graphwiki status
 
 ---
 
+## /graphwiki Slash Command
+
+In Claude Code and supported platforms, invoke GraphWiki directly via:
+
+```
+/graphwiki
+```
+
+This trigger checks if a graph exists, loads it, and answers your question based on graph nodes and edges. If no graph exists, it offers to build one with `graphwiki build . --update`.
+
+---
+
+## Build Artifacts
+
+After running `graphwiki build`, the following files are auto-generated in `graphwiki-out/`:
+
+- **`GRAPH_REPORT.md`** — Human-readable summary of graph structure: node counts, edge counts, top communities, and structural statistics (~1-2K tokens). Read this immediately after build without needing to run `status --report` separately.
+- **`log.md`** — Append-only audit trail with timestamped entries for every build, query, ask, add, ingest, and save-result command. Useful for tracking changes and debugging.
+- **`wiki/sources/`** — Per-source summary pages (zero LLM calls) — one page per input file with links and metadata.
+
+---
+
 ![GraphWiki companion — context loaded, ready to assist](assets/buddy-artist.png)
 
 ## Context Loading Protocol
@@ -91,7 +117,8 @@ When the PreToolUse hook provides insufficient context, follow this manual proto
 | `graphwiki query "question"` | Ask the knowledge base |
 | `graphwiki path <nodeA> <nodeB>` | Find shortest path between graph nodes |
 | `graphwiki ingest <file>` | Ingest new source |
-| `graphwiki add <url>` | Add a URL source to the graph |
+| `graphwiki add <url>` | Add a URL source to the graph (with URL validation) |
+| `graphwiki save-result <file> [--question Q] [--answer A] [--type T] [--nodes N]` | Persist query result to graph for memory loop |
 | `graphwiki lint` | Health check |
 | `graphwiki status` | Stats and drift score |
 | `graphwiki benchmark "question"` | Measure token usage |
@@ -145,6 +172,27 @@ graphwiki benchmark "How does authentication work?"
 | Raw file search | ~15,000 tokens | ~2,500 tokens | **83%** |
 
 The deduplication system (AST + embedding similarity) ensures each source file is extracted once. Subsequent queries reference cached graph nodes rather than re-reading raw sources.
+
+---
+
+## Karpathy Memory Loop
+
+GraphWiki supports persistent Q&A memory via the `save-result` command, enabling Andrej Karpathy's memory loop pattern:
+
+```bash
+# Ask a question and save the answer back to the graph
+graphwiki save-result result.json \
+  --question "How does authentication work?" \
+  --answer "Authentication follows OAuth2 flow with JWT tokens..." \
+  --type "pattern" \
+  --nodes "auth,oauth,jwt"
+```
+
+This writes Q&A pages to:
+- `graphwiki-out/memory/` — timestamped Q&A entries
+- `graphwiki-out/wiki/queries/` — indexed and searchable query results
+
+Subsequent builds incorporate these results into the graph, creating a self-improving knowledge base that learns from every query.
 
 ---
 
@@ -221,9 +269,22 @@ All ignore patterns are additive:
 
 ---
 
+## Security
+
+GraphWiki includes a security module (`src/util/security.ts`) with the following validations:
+
+- **`validateUrl(url)`** — Validates and sanitizes URLs before adding them via `graphwiki add`. Rejects invalid, malicious, or inaccessible URLs.
+- **`sanitizePath(path)`** — Escapes path separators and prevents directory traversal attacks.
+- **`sanitizeLabel(label)`** — Sanitizes node labels to prevent injection attacks in graph exports (GraphML, Neo4j).
+- **`escapeCypher(value)`** — Escapes values for Neo4j Cypher queries.
+
+All user-provided input (URLs, file paths, node labels) is validated automatically. No additional configuration needed.
+
+---
+
 ## Platform Installation
 
-Install GraphWiki for your platform (11 supported):
+Install GraphWiki for your platform (17 supported):
 
 | Platform | Command |
 |----------|---------|
@@ -239,6 +300,11 @@ Install GraphWiki for your platform (11 supported):
 | Trae-CN | `graphwiki skill install --platform trae-cn` |
 | GitHub Copilot | Copy `SKILL-copilot.md` to `.github/copilot/` |
 | Auggie | `graphwiki skill install --platform auggie` |
+| Windsurf | `graphwiki skill install --platform windsurf` |
+| Cody | `graphwiki skill install --platform cody` |
+| CodeWhisperer | `graphwiki skill install --platform codewhisperer` |
+| Antigravity | `graphwiki skill install --platform antigravity` |
+| Hermes | `graphwiki skill install --platform hermes` |
 
 For full skill documentation, see [SKILL.md](SKILL.md).
 

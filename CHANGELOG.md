@@ -5,6 +5,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [3.0.9] - 2026-04-14
+
+### Added
+- Test suite for `src/util/security.ts` — 42 tests covering all four functions (`validateUrl`, `sanitizePath`, `sanitizeLabel`, `escapeCypher`)
+- 24 new tests for `src/wiki/compiler.ts` — `generateSourcePages`, new frontmatter fields (confidence, sources, related, created_at), and `compileAll` multi-community paths
+
+### Changed
+- README.md updated with v3.0.7/3.0.8 features: `/graphwiki` slash command, `save-result` memory loop, GRAPH_REPORT.md auto-generation, log.md audit trail, per-source wiki pages, security module, 17-platform table
+
+### Coverage
+- `src/util` 54% → 100% (security.ts: 0% → 100%)
+- `src/wiki` 74.89% → 89.57% (compiler.ts: 58% → 92%)
+- Total test count: 795 → 860 tests
+
 ## [3.0.8] - 2026-04-13
 
 ### Added
