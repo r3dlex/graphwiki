@@ -5,6 +5,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [3.0.5] - 2026-04-13
+
+### Added
+- All output paths (`graph`, `wiki`, `deltas`, `report`, `svg`, `driftLog`, `raw`) are now configurable via `.graphwiki/config.json` under the `paths` key
+- `raw` input folder path added to `GraphWikiPaths` interface — defaults to `raw/`, overridable per project
+
+### Changed
+- Output separation: `graphwiki-out/` holds all agent-readable outputs (graph, wiki, report, svg, deltas); `.graphwiki/` holds machine state only (manifest, lock, batch, config)
+- Default graph path changed from `.graphwiki/graph.json` → `graphwiki-out/graph.json`
+- Default wiki path changed from `.graphwiki/wiki` → `graphwiki-out/wiki`
+- `raw/` directory integrated as default extraction source in `graphwiki build` — files discovered alongside project sources
+
 ## [3.0.4] - 2026-04-13
 
 ### Added
