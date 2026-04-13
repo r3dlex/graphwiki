@@ -39,6 +39,7 @@ interface GraphWikiPaths {
   report: string;
   svg: string;
   driftLog: string;
+  raw: string;
 }
 
 interface GraphWikiWiki {
@@ -61,6 +62,7 @@ const DEFAULT_PATHS: GraphWikiPaths = {
   report: 'graphwiki-out/GRAPH_REPORT.md',
   svg: 'graphwiki-out/graph.svg',
   driftLog: 'graphwiki-out/drift.log',
+  raw: 'raw',
 };
 
 async function loadConfig(): Promise<GraphWikiConfig> {
@@ -331,16 +333,16 @@ program
         absolute: false,
       });
 
-      // Also include raw/ input documents if present
-      const rawDir = join(path, 'raw');
+      // Also include raw/ input documents if present (configurable via config.paths.raw)
+      const rawDir = join(path, config.paths.raw);
       if (existsSync(rawDir)) {
         const rawFiles = await glob("**/*", {
           cwd: rawDir,
           ignore: extractionIgnores,
           absolute: false,
         });
-        // Prefix with 'raw/' so source_file paths are relative to project root
-        const prefixedRaw = rawFiles.map(f => join('raw', f));
+        // Prefix with raw dir so source_file paths are relative to project root
+        const prefixedRaw = rawFiles.map(f => join(config.paths.raw, f));
         discovered.push(...prefixedRaw);
         if (rawFiles.length > 0) {
           console.log(`[GraphWiki] Found ${rawFiles.length} files in raw/`);
