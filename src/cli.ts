@@ -628,6 +628,42 @@ program
 
       await saveGraph(finalGraph, config.paths.graph);
 
+      // Default build: compile wiki after graph is saved (skip if --graph-only or --wiki-only)
+      if (!options.graphOnly && !options.wikiOnly) {
+        console.log('[GraphWiki] Compiling wiki...');
+        const { WikiUpdater } = await import('./wiki/updater.js');
+        const { WikiCompiler } = await import('./wiki/compiler.js');
+        const provider = null as unknown as import('./types.js').LLMProvider;
+        const compiler = new WikiCompiler(provider, {
+          mode: options.mode ?? 'standard',
+          format: config.wiki.format,
+        });
+        const updater = new WikiUpdater(config.paths.wiki, compiler);
+        const pages = await compiler.compileAll(
+          [...new Set(finalGraph.nodes.filter(n => n.community !== undefined).map(n => n.community as number))].map(id => ({
+            id,
+            node_count: finalGraph.nodes.filter(n => n.community === id).length,
+            label: `community-${id}`,
+          })),
+          finalGraph,
+        );
+        await updater.recompile(finalGraph);
+        console.log('[GraphWiki] Wiki compilation complete.');
+
+        // Generate Obsidian canvas if obsidian format
+        if (config.wiki.format === 'obsidian') {
+          try {
+            const canvasJson = compiler.generateCanvas(pages);
+            const canvasPath = join(config.paths.wiki, 'graph.canvas');
+            mkdirSync(dirname(canvasPath), { recursive: true });
+            await writeFile(canvasPath, canvasJson, 'utf-8');
+            console.log('[GraphWiki] Obsidian canvas generated.');
+          } catch {
+            // Canvas generation is non-fatal
+          }
+        }
+      }
+
       // D4: Atomic write — write batch state using temp+rename pattern
       const bc = new BatchCoordinator();
       await bc.writeState(batchDir);
