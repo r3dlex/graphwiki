@@ -120,6 +120,7 @@ async function loadGraph(graphPath = '.graphwiki/graph.json'): Promise<GraphDocu
 }
 
 async function saveGraph(graph: GraphDocument, graphPath = '.graphwiki/graph.json'): Promise<void> {
+  mkdirSync(dirname(graphPath), { recursive: true });
   await writeFile(graphPath, JSON.stringify(graph, null, 2), 'utf-8');
 }
 
@@ -472,6 +473,7 @@ program
         }
 
         // Update manifest after successful extraction
+        mkdirSync(dirname(manifestPath), { recursive: true });
         await writeFile(manifestPath, JSON.stringify(newManifest, null, 2), 'utf-8');
       }
 
@@ -501,6 +503,7 @@ program
         try {
           const canvasJson = compiler.generateCanvas(pages);
           const canvasPath = join(config.paths.wiki, 'graph.canvas');
+          mkdirSync(dirname(canvasPath), { recursive: true });
           await writeFile(canvasPath, canvasJson, 'utf-8');
           console.log(`[GraphWiki] Canvas generated: ${canvasPath}`);
         } catch {
@@ -1073,24 +1076,16 @@ program
 program
   .command('status')
   .description('Show graph statistics and health status')
-  .action(async () => {
+  .option('--report', 'Write report to GRAPH_REPORT.md (config.paths.report)')
+  .action(async (options) => {
     const config = await loadConfig();
     const graph = await loadGraph(config.paths.graph);
-
-    console.log('=== GraphWiki Status ===');
-    console.log(`Nodes: ${graph.nodes.length}`);
-    console.log(`Edges: ${graph.edges.length}`);
 
     // Count by type
     const byType = new Map<string, number>();
     for (const node of graph.nodes) {
       const type = node.type || 'unknown';
       byType.set(type, (byType.get(type) || 0) + 1);
-    }
-
-    console.log('\nBy Type:');
-    for (const [type, count] of byType) {
-      console.log(`  ${type}: ${count}`);
     }
 
     // Communities
@@ -1100,18 +1095,75 @@ program
         communities.add(node.community);
       }
     }
-    console.log(`\nCommunities: ${communities.size}`);
 
     // Density
     const maxEdges = graph.nodes.length * (graph.nodes.length - 1);
     const density = maxEdges > 0 ? (graph.edges.length / maxEdges).toFixed(4) : '0';
-    console.log(`Density: ${density}`);
 
-    // Metadata
-    if (graph.metadata) {
-      console.log('\nMetadata:');
-      for (const [key, value] of Object.entries(graph.metadata)) {
-        console.log(`  ${key}: ${value}`);
+    // Top connected nodes by degree
+    const degree = new Map<string, number>();
+    for (const edge of graph.edges) {
+      degree.set(edge.source, (degree.get(edge.source) || 0) + 1);
+      degree.set(edge.target, (degree.get(edge.target) || 0) + 1);
+    }
+    const topNodes = [...degree.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([id, deg]) => ({ label: graph.nodes.find(n => n.id === id)?.label ?? id, deg }));
+
+    if (options.report) {
+      // Build markdown report
+      const lines: string[] = [
+        '# GraphWiki Report',
+        '',
+        `Generated: ${new Date().toISOString()}`,
+        '',
+        '## Summary',
+        `- Nodes: ${graph.nodes.length}`,
+        `- Edges: ${graph.edges.length}`,
+        `- Communities: ${communities.size}`,
+        `- Density: ${density}`,
+        '',
+        '## Nodes by Type',
+        '| Type | Count |',
+        '|------|-------|',
+      ];
+      for (const [type, count] of [...byType.entries()].sort((a, b) => b[1] - a[1])) {
+        lines.push(`| ${type} | ${count} |`);
+      }
+      lines.push('', '## Top Connected Nodes (by degree)', '| Node | Edges |', '|------|-------|');
+      for (const { label, deg } of topNodes) {
+        lines.push(`| ${label} | ${deg} |`);
+      }
+      if (graph.metadata && Object.keys(graph.metadata).length > 0) {
+        lines.push('', '## Metadata', '| Key | Value |', '|-----|-------|');
+        for (const [key, value] of Object.entries(graph.metadata)) {
+          lines.push(`| ${key} | ${value} |`);
+        }
+      }
+      lines.push('');
+      const reportContent = lines.join('\n');
+      mkdirSync(dirname(config.paths.report), { recursive: true });
+      writeFileSync(config.paths.report, reportContent, 'utf-8');
+      console.log(`[GraphWiki] Report written to ${config.paths.report}`);
+    } else {
+      console.log('=== GraphWiki Status ===');
+      console.log(`Nodes: ${graph.nodes.length}`);
+      console.log(`Edges: ${graph.edges.length}`);
+
+      console.log('\nBy Type:');
+      for (const [type, count] of byType) {
+        console.log(`  ${type}: ${count}`);
+      }
+
+      console.log(`\nCommunities: ${communities.size}`);
+      console.log(`Density: ${density}`);
+
+      if (graph.metadata) {
+        console.log('\nMetadata:');
+        for (const [key, value] of Object.entries(graph.metadata)) {
+          console.log(`  ${key}: ${value}`);
+        }
       }
     }
   });
@@ -1369,6 +1421,7 @@ program
       };
 
       const backupPath = `.graphwiki/graph.json.backup-${Date.now()}`;
+      mkdirSync(dirname(backupPath), { recursive: true });
       await writeFile(backupPath, JSON.stringify(currentGraph, null, 2), 'utf-8');
       console.log(`[GraphWiki] Backed up current graph to: ${backupPath}`);
 
