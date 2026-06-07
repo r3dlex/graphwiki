@@ -216,3 +216,8 @@ raw/             - Immutable source files (NEVER modify)
 - **Trae / Trae-CN:** `graphwiki skill install --platform trae` / `trae-cn`
 - **GitHub Copilot:** copy SKILL-copilot.md to `.github/copilot/`
 - **Auggie:** `graphwiki skill install --platform auggie`
+
+<!-- v3-ai-sdlc-init:start -->
+## AI SDLC v3
+This repo follows the v3 AI-SDLC layout. See `.ai/matrix.json`, `.memory/human-override/`, and `docs/architecture/adr/`. Modules at `r3dlex/skills/ai-sdlc-init/modules/`.
+<!-- v3-ai-sdlc-init:end -->
