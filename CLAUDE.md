@@ -23,3 +23,7 @@ graphwiki hook uninstall           # Uninstall hooks
 graphwiki hook status              # Check hook status
 graphwiki skill uninstall --all    # Remove all skill installations
 ```
+<!-- v3-ai-sdlc-init:start -->
+## v3
+See `.ai/matrix.json` and `AGENTS.md` for the operating contract.
+<!-- v3-ai-sdlc-init:end -->
