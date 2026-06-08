@@ -14,9 +14,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  skill-check:
-    name: Verify skill files are up to date
-    runs-on: ubuntu-latest
+  _skill-check-self-hosted:
+    name: "Verify skill files are up to date (self-hosted)"
+    runs-on: [self-hosted, ubuntu-latest]
+    timeout-minutes: 30
+    continue-on-error: true
+    outputs:
+      passed: ${{ steps.mark.outputs.passed }}
     steps:
       - uses: actions/checkout@v4
 
@@ -36,4 +40,43 @@ jobs:
         run: pnpm run generate:skills
 
       - name: Check skill files match SKILL.md
+        run: node --import tsx/esm src/hooks/skill-generator.ts --check
+
+      - id: mark
+        if: success()
+        run: echo "passed=true" >> "$GITHUB_OUTPUT"
+
+  skill-check:
+    name: Verify skill files are up to date
+    needs: _skill-check-self-hosted
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Route
+        run: echo "passed=${{ needs._skill-check-self-hosted.outputs.passed }}"
+
+      - uses: actions/checkout@v4
+        if: needs._skill-check-self-hosted.outputs.passed != 'true'
+
+      - uses: pnpm/action-setup@v4
+        if: needs._skill-check-self-hosted.outputs.passed != 'true'
+        with:
+          version: 9.0.0
+
+      - uses: actions/setup-node@v4
+        if: needs._skill-check-self-hosted.outputs.passed != 'true'
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        if: needs._skill-check-self-hosted.outputs.passed != 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate skill files
+        if: needs._skill-check-self-hosted.outputs.passed != 'true'
+        run: pnpm run generate:skills
+
+      - name: Check skill files match SKILL.md
+        if: needs._skill-check-self-hosted.outputs.passed != 'true'
         run: node --import tsx/esm src/hooks/skill-generator.ts --check
