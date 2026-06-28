@@ -33,8 +33,8 @@
       "endpoint": null,
       "note": "GraphWiki ships its own MCP server (src/serve/, HTTP + stdio transports). This entry is a registry stub; init-ai-repo does not launch it.",
       "tools": [
-        "graph_query",
-        "graph_path",
+        "query_graph",
+        "shortest_path",
         "wiki_read"
       ]
     }
