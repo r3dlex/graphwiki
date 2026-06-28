@@ -1,0 +1,41 @@
+# ADR 0003: AGENTS.md as single source of truth; CLAUDE.md/GEMINI.md as thin pointers
+
+## Status
+Accepted.
+
+## Context
+`AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` are static-context rule files;
+portability across tools and vendors is a core goal of the AI-SDLC scaffold.
+GraphWiki is explicitly platform-agnostic (it installs skills for Claude Code,
+Codex, Gemini, Cursor, Auggie, and more), so a single tool-neutral operating
+contract matters more here than usual. Having `CLAUDE.md` carry content-bearing
+sections (it previously held a Quick Reference command block) causes it to drift
+from `AGENTS.md` and breaks tool-agnostic discovery: any surface that reads only
+`CLAUDE.md` misses content carried exclusively in `AGENTS.md`, and vice versa.
+
+The init-ai-repo v3 standard requires AGENTS.md to be the single source of truth
+and mandates that CLAUDE.md and GEMINI.md are thin pointers with no
+content-bearing sections.
+
+## Decision
+- `AGENTS.md` is the **single source of truth** for rule-file/static context,
+  including the Harness Map, workflow links, system-prompt references, the
+  context-loading protocol, the command list, and conventions.
+- `CLAUDE.md` and `GEMINI.md` are **thin pointers** to `AGENTS.md` — a single
+  header line and a link, no content-bearing sections (per
+  `modules/documentation-blueprint.md`).
+- Self-apply to `graphwiki`: the content-bearing `CLAUDE.md` (which carried a
+  Quick Reference command block) is collapsed to a thin pointer after confirming
+  its commands are present in `AGENTS.md`; `GEMINI.md` is newly created as a thin
+  pointer.
+- Every tool that ingests `CLAUDE.md` or `GEMINI.md` receives a deterministic
+  pointer to `AGENTS.md` and the full operating contract therein.
+
+## Consequences
+- One canonical rule file to maintain; `CLAUDE.md` and `GEMINI.md` never drift
+  from it.
+- Tool-agnostic discovery: Claude Code, Codex, Gemini, Auggie, and future tools
+  all resolve to the same operating contract — consistent with GraphWiki's
+  platform-agnostic posture.
+- The AGENTS.md Harness Map becomes the cross-tool discovery surface for the six
+  context types (Instructions, Knowledge, Memory, Examples, Tools, Guardrails).

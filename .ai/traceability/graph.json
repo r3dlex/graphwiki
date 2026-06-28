@@ -1,0 +1,172 @@
+{
+  "schema_version": "1.1",
+  "root_repo_id": "gw-root",
+  "topology_type": "standalone",
+  "generated_at": "2026-06-28T00:00:00Z",
+  "nodes": [
+    {
+      "id": "adr:gw-root:init",
+      "type": "adr",
+      "title": "v3 AI-SDLC scaffold adoption",
+      "status": "active",
+      "repo_id": "gw-root",
+      "path": "docs/architecture/adr/0001-init.md",
+      "backlinks": []
+    },
+    {
+      "id": "adr:gw-root:governance-v3-upgrade",
+      "type": "adr",
+      "title": "Governance upgrade to v3 standard",
+      "status": "active",
+      "repo_id": "gw-root",
+      "path": "docs/architecture/adr/0002-init-ai-repo-v3-upgrade.md",
+      "backlinks": [
+        "adr:gw-root:init"
+      ]
+    },
+    {
+      "id": "adr:gw-root:agents-md-single-source",
+      "type": "adr",
+      "title": "AGENTS.md single source of truth; thin CLAUDE.md/GEMINI.md pointers",
+      "status": "active",
+      "repo_id": "gw-root",
+      "path": "docs/architecture/adr/0003-agents-md-single-source.md",
+      "backlinks": [
+        "adr:gw-root:governance-v3-upgrade"
+      ]
+    },
+    {
+      "id": "adr:gw-root:mcp-a2a-observability",
+      "type": "adr",
+      "title": "MCP/A2A open standards and observability harness surface",
+      "status": "active",
+      "repo_id": "gw-root",
+      "path": "docs/architecture/adr/0004-mcp-a2a-and-observability.md",
+      "backlinks": [
+        "adr:gw-root:governance-v3-upgrade"
+      ]
+    },
+    {
+      "id": "plan:gw-root:discover-decide",
+      "type": "plan",
+      "title": "Discover & Decide: SDLC path selection",
+      "status": "active",
+      "repo_id": "gw-root",
+      "path": ".ai/init/sdlc-path.md",
+      "backlinks": [
+        "adr:gw-root:init"
+      ]
+    },
+    {
+      "id": "validation:gw-root:repo-profile",
+      "type": "validation",
+      "title": "Repository profile (discover-decide evidence)",
+      "status": "active",
+      "repo_id": "gw-root",
+      "path": ".ai/init/repo-profile.json",
+      "backlinks": [
+        "plan:gw-root:discover-decide"
+      ]
+    },
+    {
+      "id": "workflow:gw-root:repo-workflow",
+      "type": "workflow",
+      "title": "Repo workflow manifest",
+      "status": "active",
+      "repo_id": "gw-root",
+      "path": ".ai/workflows/repo-workflow.json",
+      "backlinks": [
+        "adr:gw-root:governance-v3-upgrade"
+      ]
+    },
+    {
+      "id": "validation:gw-root:traceability-report",
+      "type": "validation",
+      "title": "Traceability validation report",
+      "status": "active",
+      "repo_id": "gw-root",
+      "path": ".ai/traceability/validation-report.md",
+      "backlinks": [
+        "workflow:gw-root:repo-workflow"
+      ]
+    },
+    {
+      "id": "handoff:gw-root:init-ai-repo",
+      "type": "handoff",
+      "title": "init-ai-repo handoff",
+      "status": "active",
+      "repo_id": "gw-root",
+      "path": ".ai/handoff/init-ai-repo-handoff.md",
+      "backlinks": [
+        "validation:gw-root:traceability-report"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "source": "adr:gw-root:init",
+      "target": "adr:gw-root:governance-v3-upgrade",
+      "relation": "refines-to",
+      "created_by": "init-ai-repo",
+      "evidence_path": ".ai/traceability/index.md"
+    },
+    {
+      "source": "adr:gw-root:init",
+      "target": "plan:gw-root:discover-decide",
+      "relation": "constrains",
+      "created_by": "init-ai-repo",
+      "evidence_path": ".ai/traceability/index.md"
+    },
+    {
+      "source": "adr:gw-root:governance-v3-upgrade",
+      "target": "adr:gw-root:agents-md-single-source",
+      "relation": "refines-to",
+      "created_by": "init-ai-repo",
+      "evidence_path": ".ai/traceability/index.md"
+    },
+    {
+      "source": "adr:gw-root:governance-v3-upgrade",
+      "target": "adr:gw-root:mcp-a2a-observability",
+      "relation": "refines-to",
+      "created_by": "init-ai-repo",
+      "evidence_path": ".ai/traceability/index.md"
+    },
+    {
+      "source": "adr:gw-root:governance-v3-upgrade",
+      "target": "workflow:gw-root:repo-workflow",
+      "relation": "constrains",
+      "created_by": "init-ai-repo",
+      "evidence_path": ".ai/traceability/index.md"
+    },
+    {
+      "source": "plan:gw-root:discover-decide",
+      "target": "validation:gw-root:repo-profile",
+      "relation": "decomposes-to",
+      "created_by": "init-ai-repo",
+      "evidence_path": ".ai/traceability/index.md"
+    },
+    {
+      "source": "workflow:gw-root:repo-workflow",
+      "target": "validation:gw-root:traceability-report",
+      "relation": "validated-by",
+      "created_by": "init-ai-repo",
+      "evidence_path": ".ai/traceability/index.md"
+    },
+    {
+      "source": "validation:gw-root:traceability-report",
+      "target": "handoff:gw-root:init-ai-repo",
+      "relation": "summarized-by",
+      "created_by": "init-ai-repo",
+      "evidence_path": ".ai/traceability/index.md"
+    }
+  ],
+  "coverage": {
+    "required_types": [
+      "adr",
+      "plan",
+      "workflow",
+      "validation",
+      "handoff"
+    ]
+  }
+}

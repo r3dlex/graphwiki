@@ -1,0 +1,86 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-28T00:00:00Z",
+  "repo_id": "gw-root",
+  "repo_name": "graphwiki",
+  "remote": "git@github.com:r3dlex/graphwiki-skill.git",
+  "description": "LLM-powered knowledge graph builder with persistent wiki compilation and Claude Code context loading protocol.",
+  "language": "TypeScript",
+  "runtime": "node",
+  "node_version_minimum": "18",
+  "package_manager": "pnpm",
+  "package_manager_version": "9.0.0",
+  "workspace_layout": "single-package",
+  "workspace_packages": [],
+  "topology": {
+    "topology_type": "standalone",
+    "current_depth": 0,
+    "max_allowed_depth": 0,
+    "sync_strategy": "physical-copy"
+  },
+  "ci": {
+    "provider": "GitHub Actions",
+    "workflow_files": [
+      ".github/workflows/ci.yml",
+      ".github/workflows/skill-check.yml"
+    ],
+    "pre_commit": null,
+    "pre_commit_config": null
+  },
+  "scripts": {
+    "test": "pnpm run test",
+    "test_unit": "pnpm run test:unit",
+    "test_integration": "pnpm run test:integration",
+    "build": "pnpm run build",
+    "typecheck": "pnpm run typecheck",
+    "lint": "pnpm run lint",
+    "fmt": "pnpm run fmt"
+  },
+  "test_framework": "vitest",
+  "build_tool": "tsup",
+  "linter": "eslint",
+  "formatter": "prettier",
+  "coverage_thresholds": {
+    "lines": 80,
+    "branches": 80,
+    "functions": 80,
+    "statements": 80
+  },
+  "tracker": {
+    "host": "github",
+    "repo": "r3dlex/graphwiki-skill",
+    "issues_url": "https://github.com/r3dlex/graphwiki-skill/issues"
+  },
+  "branch_policy": {
+    "protected_branch": "main",
+    "delivery": "PR-only",
+    "auto_merge": "squash (when CI + approval green)"
+  },
+  "conventions": {
+    "adr_dir": "docs/architecture/adr/",
+    "legacy_adr_dir": "docs/adr/",
+    "spec_dir": "docs/specifications/",
+    "module_spec_dir": "spec/",
+    "source_dir": "src/",
+    "dist_generated": true,
+    "generated_skill_files": "SKILL-*.md (from SKILL.md)",
+    "entry_bin": "graphwiki"
+  },
+  "archgate": {
+    "present": true,
+    "dependency": "archgate@0.27.0",
+    "rules_file": null,
+    "note": "archgate is a devDependency and runs as a continue-on-error CI job; no .rules.ts present in-repo."
+  },
+  "release_config": "ci.yml (npm publish on tag/version bump)",
+  "existing_governance": {
+    "ai_rules": [".ai/rules/security.md", ".ai/rules/technical-bounds.md"],
+    "ai_skills": [".ai/skills/git-ops.json", ".ai/skills/workspace-sync.json"],
+    "ai_system_prompts": [
+      ".ai/system-prompts/architect.md",
+      ".ai/system-prompts/developer.md",
+      ".ai/system-prompts/qa-engineer.md"
+    ],
+    "memory_layer": ".memory/"
+  }
+}
