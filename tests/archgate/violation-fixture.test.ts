@@ -83,14 +83,15 @@ describe('archgate violation fixture', { timeout: 75_000 }, () => {
     mkdirSync(resolve(project, '.graphwiki'), { recursive: true });
     writeFileSync(
       resolve(project, '.graphwiki/config.json'),
-      JSON.stringify({ paths: { wiki: 'knowledge' } })
+      JSON.stringify({ paths: { wiki: 'graphwiki-out/wiki/custom' } })
     );
 
     const frontmatter =
       '---\ngraph_nodes: []\ntitle: Page\ntype: concept\nsources: []\nrelated: []\nconfidence: 1\ncontent_hash: test\n---\n';
-    mkdirSync(resolve(project, 'knowledge'), { recursive: true });
-    writeFileSync(resolve(project, 'knowledge/a.md'), `${frontmatter}[[b]]\n`);
-    writeFileSync(resolve(project, 'knowledge/b.md'), `${frontmatter}Linked page.\n`);
+    const wikiRoot = resolve(project, 'graphwiki-out/wiki/custom');
+    mkdirSync(wikiRoot, { recursive: true });
+    writeFileSync(resolve(wikiRoot, 'a.md'), `${frontmatter}[[b]]\n`);
+    writeFileSync(resolve(wikiRoot, 'b.md'), `${frontmatter}Linked page.\n`);
 
     const valid = runArchgate(project);
     expect(valid.status, `${valid.stdout}\n${valid.stderr}`).toBe(0);

@@ -24,19 +24,19 @@ const requiredFrontmatter = [
 ];
 
 async function wikiRoots(ctx: RuleContext): Promise<string[]> {
-  const roots = new Set(['graphwiki-out/wiki']);
+  let root = 'graphwiki-out/wiki';
   try {
     const config = JSON.parse(await ctx.readFile('.graphwiki/config.json')) as {
       paths?: { wiki?: unknown };
     };
     if (typeof config.paths?.wiki === 'string' && config.paths.wiki.trim()) {
-      roots.add(config.paths.wiki.replace(/^\.\//, '').replace(/\/$/, ''));
+      root = config.paths.wiki.replace(/^\.\//, '').replace(/\/$/, '');
     }
   } catch {
     // The config is optional; the CLI default remains enforced.
   }
 
-  return [...roots];
+  return [root];
 }
 
 async function wikiFiles(ctx: RuleContext, roots?: string[]): Promise<string[]> {
