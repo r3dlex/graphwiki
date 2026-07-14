@@ -7,7 +7,7 @@ import { Command } from 'commander';
 import { readFile, writeFile, stat } from 'fs/promises';
 import { glob } from 'glob';
 import { resolveIgnoresSplit } from './util/ignore-resolver.js';
-import { join, dirname } from 'path';
+import { join, dirname, relative, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync, writeFileSync, unlinkSync, readFileSync, mkdirSync, readdirSync, appendFileSync } from 'fs';
 import { computeDelta, persistDelta } from './graph/delta.js';
@@ -397,7 +397,15 @@ program
       // Count source files
       let fileCount = 0;
       const { extractionIgnores, outputIgnores } = await resolveIgnoresSplit(path);
-      const globExtractionIgnores = extractionIgnores.map((pattern) =>
+      const sourceRoot = resolve(path);
+      const wikiRoot = resolve(config.paths.wiki);
+      const configuredWikiRoot = relative(sourceRoot, wikiRoot).replaceAll('\\', '/');
+      const configuredWikiIgnore = configuredWikiRoot &&
+        configuredWikiRoot !== '..' &&
+        !configuredWikiRoot.startsWith('../')
+        ? [`${configuredWikiRoot.replace(/\/+$/, '')}/`]
+        : [];
+      const globExtractionIgnores = [...extractionIgnores, ...configuredWikiIgnore].map((pattern) =>
         pattern.endsWith('/') ? `${pattern}**` : pattern
       );
       const discovered = new Set(await glob("**/*", {
@@ -410,9 +418,15 @@ program
       // Also include raw/ input documents if present (configurable via config.paths.raw)
       const rawDir = join(path, config.paths.raw);
       if (existsSync(rawDir)) {
+        const rawRelativeWikiRoot = relative(resolve(rawDir), wikiRoot).replaceAll('\\', '/');
+        const rawExtractionIgnores = rawRelativeWikiRoot === ''
+          ? ['**']
+          : rawRelativeWikiRoot !== '..' && !rawRelativeWikiRoot.startsWith('../')
+            ? [...globExtractionIgnores, `${rawRelativeWikiRoot.replace(/\/+$/, '')}/**`]
+            : globExtractionIgnores;
         const rawFiles = await glob("**/*", {
           cwd: rawDir,
-          ignore: globExtractionIgnores,
+          ignore: rawExtractionIgnores,
           absolute: false,
           nodir: true,
         });

@@ -41,6 +41,29 @@ describe('build file discovery', () => {
     expect(second.edges).toEqual(first.edges);
   });
 
+  it.each([
+    ['a custom wiki root', 'generated/wiki'],
+    ['a wiki root nested under raw input', 'raw/generated/wiki'],
+  ])('does not re-ingest generated pages from %s', (_label, wikiRoot) => {
+    const projectRoot = mkdtempSync(join(tmpdir(), 'graphwiki-build-custom-wiki-'));
+    const configDir = join(projectRoot, '.graphwiki');
+    mkdirSync(configDir);
+    writeFileSync(
+      join(configDir, 'config.json'),
+      JSON.stringify({ paths: { wiki: wikiRoot } }),
+    );
+    writeFileSync(join(projectRoot, 'source.md'), '# Source\n\n## Stable concept\n');
+
+    build(projectRoot);
+    const first = readGraph(projectRoot);
+    writeFileSync(join(projectRoot, wikiRoot, 'generated.md'), '# Generated\n\n## Must stay excluded\n');
+    build(projectRoot);
+    const second = readGraph(projectRoot);
+
+    expect(second).toEqual(first);
+    expect(second.nodes.some((node) => node.source_file?.startsWith(`${wikiRoot}/`))).toBe(false);
+  });
+
   it('discovers raw markdown and PDF inputs exactly once', () => {
     const projectRoot = mkdtempSync(join(tmpdir(), 'graphwiki-build-raw-'));
     const rawDir = join(projectRoot, 'raw');
