@@ -16,6 +16,7 @@ on:
 jobs:
   _archgate-self-hosted:
     name: "archgate check (self-hosted)"
+    if: vars.SELF_HOSTED_CI_ENABLED == 'true'
     runs-on: [self-hosted, ubuntu-latest]
     timeout-minutes: 30
     continue-on-error: true
@@ -91,6 +92,7 @@ jobs:
 
   _test-self-hosted:
     name: "Tests (self-hosted)"
+    if: vars.SELF_HOSTED_CI_ENABLED == 'true'
     runs-on: [self-hosted, ubuntu-latest]
     timeout-minutes: 30
     continue-on-error: true
@@ -164,6 +166,7 @@ jobs:
 
   _hook-deployment-self-hosted:
     name: "Hook Deployment Smoke Test (self-hosted)"
+    if: vars.SELF_HOSTED_CI_ENABLED == 'true'
     runs-on: [self-hosted, ubuntu-latest]
     timeout-minutes: 30
     continue-on-error: true

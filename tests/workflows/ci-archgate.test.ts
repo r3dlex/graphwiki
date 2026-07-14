@@ -16,6 +16,9 @@ describe('CI archgate runner routing', () => {
 
   it('routes unsupported self-hosted runners to the hosted fallback', () => {
     expect(workflow).toMatch(
+      /_archgate-self-hosted:[\s\S]*?if: vars\.SELF_HOSTED_CI_ENABLED == 'true'/
+    );
+    expect(workflow).toMatch(
       /- id: mark\n\s+if: runner\.arch == 'X64' && success\(\)\n\s+run: echo "passed=true"/
     );
     expect(workflow).toContain("if: needs._archgate-self-hosted.outputs.passed != 'true'");
