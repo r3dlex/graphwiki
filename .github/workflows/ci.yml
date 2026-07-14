@@ -48,13 +48,15 @@ jobs:
           grep "scope: 'src/dedup/'" arch/rules/dedup.rules.ts
 
       - name: Initialize archgate project
+        if: runner.arch == 'X64'
         run: pnpm exec archgate init
 
       - name: Run archgate check
+        if: runner.arch == 'X64'
         run: pnpm exec archgate check --ci
 
       - id: mark
-        if: success()
+        if: runner.arch == 'X64' && success()
         run: echo "passed=true" >> "$GITHUB_OUTPUT"
 
   archgate:
