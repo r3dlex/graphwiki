@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -80,12 +80,22 @@ describe('build file discovery', () => {
     const parentRoot = mkdtempSync(join(tmpdir(), 'graphwiki-build-from-parent-'));
     const projectRoot = join(parentRoot, 'target');
     const configDir = join(projectRoot, '.graphwiki');
+    const callerPendingDir = join(parentRoot, '.graphwiki', 'pending');
     mkdirSync(configDir, { recursive: true });
+    mkdirSync(callerPendingDir, { recursive: true });
     writeFileSync(
       join(configDir, 'config.json'),
       JSON.stringify({ paths: { wiki: 'generated/wiki' } }),
     );
     writeFileSync(join(projectRoot, 'source.md'), '# Source\n\n## Stable concept\n');
+    writeFileSync(join(projectRoot, 'manual.pdf'), '%PDF-1.4 test fixture');
+    writeFileSync(
+      join(callerPendingDir, 'unrelated.result.json'),
+      JSON.stringify({
+        nodes: [{ id: 'alien-from-cwd', type: 'concept', label: 'Alien', source_file: 'unrelated.md' }],
+        edges: [],
+      }),
+    );
 
     buildFrom(parentRoot, projectRoot);
     const first = readGraph(projectRoot);
@@ -94,7 +104,13 @@ describe('build file discovery', () => {
     const second = readGraph(projectRoot);
 
     expect(second).toEqual(first);
+    expect(second.nodes.some((node) => node.id === 'alien-from-cwd')).toBe(false);
     expect(second.nodes.some((node) => node.source_file?.startsWith('generated/wiki/'))).toBe(false);
+    expect(existsSync(join(projectRoot, '.graphwiki', 'batch', 'batch-state.json'))).toBe(true);
+    expect(existsSync(join(projectRoot, '.graphwiki', 'pending', 'manual.pdf.prompt.md'))).toBe(true);
+    expect(existsSync(join(parentRoot, '.graphwiki', 'batch'))).toBe(false);
+    expect(existsSync(join(parentRoot, '.graphwiki', '.lock'))).toBe(false);
+    expect(existsSync(join(callerPendingDir, 'manual.pdf.prompt.md'))).toBe(false);
   });
 
   it('discovers raw markdown and PDF inputs exactly once', () => {

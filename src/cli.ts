@@ -314,12 +314,13 @@ program
   .option('--watch', 'Watch for file changes and rebuild incrementally')
   .action(async (path: string, options) => {
     const startTime = Date.now();
+    const sourceRoot = resolve(path);
     const config = await loadConfig(path);
     console.log(`[GraphWiki] Building graph from ${path}`);
     console.log(`[GraphWiki] Options:`, options);
 
-    const graphwikiDir = '.graphwiki';
-    const lockFile = `${graphwikiDir}/.lock`;
+    const graphwikiDir = join(sourceRoot, '.graphwiki');
+    const lockFile = join(graphwikiDir, '.lock');
     const GRAPHWIKI_VERSION = VERSION;
 
     // D1: Lock file management
@@ -415,7 +416,6 @@ program
       // Count source files
       let fileCount = 0;
       const { extractionIgnores, outputIgnores } = await resolveIgnoresSplit(path);
-      const sourceRoot = resolve(path);
       const wikiRoot = resolve(config.paths.wiki);
       const isGeneratedWikiPath = (candidate: string): boolean => {
         const relativePath = relative(wikiRoot, candidate);
