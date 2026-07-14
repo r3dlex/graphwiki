@@ -4,7 +4,7 @@
 
 GraphWiki is a TypeScript CLI that extracts code and Markdown into a persistent
 knowledge graph, compiles human-readable wiki pages, and exposes graph queries,
-health checks, exports, hooks, skills, and MCP transports.
+health checks, exports, hooks, and skills.
 
 - **Official repository:** [r3dlex/graphwiki](https://github.com/r3dlex/graphwiki)
 - **npm package and CLI:** [`graphwiki`](https://www.npmjs.com/package/graphwiki)
@@ -33,7 +33,7 @@ npm install -g graphwiki@latest
 graphwiki --version
 
 cd /path/to/your/project
-graphwiki build . --update
+graphwiki build .
 graphwiki status
 ```
 
@@ -43,15 +43,6 @@ values. The current repository source also writes
 `graphwiki-out/GRAPH_REPORT.md` and compiled pages under
 `graphwiki-out/wiki/`; use the installed command's output as the source of truth
 if you are on an older published version.
-
-`--update` is the recommended first and repeat build mode. It maintains local
-state so later runs can detect changed content. If ONNX initialization is not
-available on your machine, retry the build with the source-backed rough
-similarity fallback:
-
-```bash
-graphwiki build . --update --no-onnx
-```
 
 ## What GraphWiki Writes
 
@@ -72,7 +63,7 @@ Treat `.graphwiki/` and `graphwiki-out/` as generated state. Review your target
 project's ignore policy before committing them, and commit or back up important
 work before using recovery options that rebuild generated state.
 
-## Update and Rerun Semantics
+## Rerun Semantics
 
 Update the installed CLI and verify the active version with:
 
@@ -81,21 +72,16 @@ npm install -g graphwiki@latest
 graphwiki --version
 ```
 
-The install command is safe to rerun. After updating, rerun the incremental build
-in each indexed project:
+The install command is safe to rerun. After updating, rebuild each indexed
+project from its current sources:
 
 ```bash
-graphwiki build . --update
+graphwiki build .
 graphwiki status
 ```
 
-- `graphwiki build . --update` refreshes generated graph and wiki output from
-  current source files and updates the local content manifest.
-- `graphwiki build . --resume` is for an interrupted build with saved batch
-  state; it is not the normal update command.
-- `graphwiki build . --force` clears the incremental manifest and batch state
-  before rebuilding. Use it only when a normal update cannot recover, after
-  reviewing or backing up generated state.
+- `graphwiki build .` rebuilds graph and wiki output from the current source
+  files.
 - A live build lock prevents concurrent builds in the same project. Stale or
   corrupt lock files are removed automatically by the CLI.
 - `raw/` is an input location. GraphWiki reads it when present; do not treat it
@@ -115,13 +101,14 @@ graphwiki lint
 ### Ingest additional content
 
 ```bash
-graphwiki ingest raw/api.pdf
+graphwiki ingest notes.md
 graphwiki add https://example.com/reference
 ```
 
-URL ingestion validates the URL before fetching it. Media and document inputs
-that cannot be extracted locally may produce prompts under
-`.graphwiki/pending/` for a later extraction pass.
+Direct file ingestion reads UTF-8 text, so do not pass a binary PDF to
+`graphwiki ingest`. To generate an extraction prompt for a PDF, place it under
+`raw/` and run `graphwiki build .`; build-time discovery writes the prompt under
+`.graphwiki/pending/`. URL ingestion validates the URL before fetching it.
 
 ### Install an agent skill or hook
 
@@ -136,17 +123,14 @@ Platform installation changes user or project tool configuration. Review the
 especially in an existing customized setup. Generated `SKILL-*.md` files come
 from [`SKILL.md`](SKILL.md); edit the canonical file rather than generated copies.
 
-### Serve or export the graph
+### Export the graph
 
 ```bash
-graphwiki serve
-graphwiki serve --http --port 8080
 graphwiki export html --output graphwiki-out/exports
 ```
 
-The server supports stdio and HTTP MCP transports. Neo4j export and verification
-require the corresponding URI and credentials; see the
-[command reference](references/commands.md).
+Neo4j export and verification require the corresponding URI and credentials;
+see the [command reference](references/commands.md).
 
 ## Troubleshooting
 
@@ -161,27 +145,11 @@ npm exec --yes --package=graphwiki@latest -- graphwiki --version
 
 Then reinstall with `npm install -g graphwiki@latest`.
 
-### The build reports an ONNX or native-module error
-
-Retry with the local rough-similarity fallback:
-
-```bash
-graphwiki build . --update --no-onnx
-```
-
-If the install itself failed, use a supported Node.js version and reinstall the
-package before retrying.
-
 ### `Build already in progress`
 
 Do not start two builds in the same project. Wait for the reported process to
-finish. If an earlier run was interrupted, use:
-
-```bash
-graphwiki build . --resume
-```
-
-The CLI removes stale locks when their process is no longer running.
+finish, then rerun `graphwiki build .`. The CLI removes stale locks when their
+process is no longer running.
 
 ### Status is empty or the graph looks stale
 
@@ -189,7 +157,7 @@ Make sure you are in the intended project root, inspect `.graphwikiignore` and
 `.graphifyignore`, then run:
 
 ```bash
-graphwiki build . --update
+graphwiki build .
 graphwiki status
 ```
 
