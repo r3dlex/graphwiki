@@ -397,29 +397,35 @@ program
       // Count source files
       let fileCount = 0;
       const { extractionIgnores, outputIgnores } = await resolveIgnoresSplit(path);
-      const discovered = await glob("**/*", {
+      const globExtractionIgnores = extractionIgnores.map((pattern) =>
+        pattern.endsWith('/') ? `${pattern}**` : pattern
+      );
+      const discovered = new Set(await glob("**/*", {
         cwd: path,
-        ignore: extractionIgnores,
+        ignore: globExtractionIgnores,
         absolute: false,
-      });
+        nodir: true,
+      }));
 
       // Also include raw/ input documents if present (configurable via config.paths.raw)
       const rawDir = join(path, config.paths.raw);
       if (existsSync(rawDir)) {
         const rawFiles = await glob("**/*", {
           cwd: rawDir,
-          ignore: extractionIgnores,
+          ignore: globExtractionIgnores,
           absolute: false,
+          nodir: true,
         });
         // Prefix with raw dir so source_file paths are relative to project root
         const prefixedRaw = rawFiles.map(f => join(config.paths.raw, f));
-        discovered.push(...prefixedRaw);
+        for (const rawFile of prefixedRaw) discovered.add(rawFile);
         if (rawFiles.length > 0) {
           console.log(`[GraphWiki] Found ${rawFiles.length} files in raw/`);
         }
       }
 
-      fileCount = discovered.length;
+      const discoveredFiles = [...discovered];
+      fileCount = discoveredFiles.length;
 
       console.log(`[GraphWiki] Found ${fileCount} files`);
       console.log(`[GraphWiki] Graph has ${oldGraph.nodes.length} nodes, ${oldGraph.edges.length} edges`);
@@ -431,7 +437,7 @@ program
       // Skip when --wiki-only or --cluster-only (those reuse the existing graph)
       if (!options.wikiOnly && !options.clusterOnly) {
         console.log('[GraphWiki] Extracting graph from source files...');
-        finalGraph = await extractGraph(discovered, path);
+        finalGraph = await extractGraph(discoveredFiles, path);
         console.log(`[GraphWiki] Extraction complete: ${finalGraph.nodes.length} nodes, ${finalGraph.edges.length} edges`);
       }
 
@@ -441,7 +447,7 @@ program
         const pendingDir = join(graphwikiDir, 'pending');
         const promptExts = new Set(['.pdf', '.docx', '.pptx', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
         let promptCount = 0;
-        for (const file of discovered) {
+        for (const file of discoveredFiles) {
           const ext = '.' + (file.split('.').pop()?.toLowerCase() ?? '');
           if (promptExts.has(ext)) {
             await generateExtractionPrompt(join(path, file), pendingDir);
@@ -458,7 +464,7 @@ program
         const { generateExtractionPrompt } = await import('./extract/prompt-generator.js');
         const deepDir = join(graphwikiDir, 'pending', 'deep');
         let deepCount = 0;
-        for (const file of discovered) {
+        for (const file of discoveredFiles) {
           await generateExtractionPrompt(join(path, file), deepDir);
           deepCount++;
         }
@@ -523,7 +529,7 @@ program
         const filesToExtract: string[] = [];
         const newManifest: Record<string, string> = { ...manifest };
 
-        await Promise.all(discovered.map(async (file) => {
+        await Promise.all(discoveredFiles.map(async (file) => {
           try {
             const absPath = join(path, file);
             const content = await readFile(absPath, 'utf-8');
