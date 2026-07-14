@@ -20,6 +20,14 @@ function build(projectRoot: string): string {
   );
 }
 
+function buildFrom(cwd: string, projectRoot: string): string {
+  return execFileSync(
+    process.execPath,
+    [cliPath, 'build', projectRoot],
+    { cwd, encoding: 'utf8' },
+  );
+}
+
 function readGraph(projectRoot: string): GraphDocument {
   return JSON.parse(
     readFileSync(join(projectRoot, 'graphwiki-out', 'graph.json'), 'utf8'),
@@ -44,6 +52,10 @@ describe('build file discovery', () => {
   it.each([
     ['a custom wiki root', 'generated/wiki'],
     ['a wiki root nested under raw input', 'raw/generated/wiki'],
+    ['square brackets in the wiki root', 'generated/[wiki]'],
+    ['an asterisk in the wiki root', 'generated/star*wiki'],
+    ['a question mark in the wiki root', 'generated/what?wiki'],
+    ['a backslash in the wiki root', 'generated/back\\slash'],
   ])('does not re-ingest generated pages from %s', (_label, wikiRoot) => {
     const projectRoot = mkdtempSync(join(tmpdir(), 'graphwiki-build-custom-wiki-'));
     const configDir = join(projectRoot, '.graphwiki');
@@ -62,6 +74,27 @@ describe('build file discovery', () => {
 
     expect(second).toEqual(first);
     expect(second.nodes.some((node) => node.source_file?.startsWith(`${wikiRoot}/`))).toBe(false);
+  });
+
+  it('loads configuration relative to an explicit build path', () => {
+    const parentRoot = mkdtempSync(join(tmpdir(), 'graphwiki-build-from-parent-'));
+    const projectRoot = join(parentRoot, 'target');
+    const configDir = join(projectRoot, '.graphwiki');
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      join(configDir, 'config.json'),
+      JSON.stringify({ paths: { wiki: 'generated/wiki' } }),
+    );
+    writeFileSync(join(projectRoot, 'source.md'), '# Source\n\n## Stable concept\n');
+
+    buildFrom(parentRoot, projectRoot);
+    const first = readGraph(projectRoot);
+    writeFileSync(join(projectRoot, 'generated/wiki/generated.md'), '# Generated\n\n## Must stay excluded\n');
+    buildFrom(parentRoot, projectRoot);
+    const second = readGraph(projectRoot);
+
+    expect(second).toEqual(first);
+    expect(second.nodes.some((node) => node.source_file?.startsWith('generated/wiki/'))).toBe(false);
   });
 
   it('discovers raw markdown and PDF inputs exactly once', () => {
