@@ -7,10 +7,10 @@ const workflow = readFileSync(resolve(process.cwd(), '.github/workflows/ci.yml')
 describe('CI archgate runner routing', () => {
   it('uses self-hosted archgate only on supported X64 runners', () => {
     expect(workflow).toMatch(
-      /- name: Initialize archgate project\n\s+if: runner\.arch == 'X64'\n\s+run: pnpm exec archgate init/
+      /- name: Run archgate check\n\s+if: runner\.arch == 'X64'\n\s+run: pnpm exec archgate check --ci/
     );
     expect(workflow).toMatch(
-      /- name: Run archgate check\n\s+if: runner\.arch == 'X64'\n\s+run: pnpm exec archgate check --ci/
+      /- name: Prove archgate rejects a known violation\n\s+if: runner\.arch == 'X64'\n\s+run: pnpm exec vitest run tests\/archgate\/violation-fixture\.test\.ts/
     );
   });
 
@@ -19,5 +19,9 @@ describe('CI archgate runner routing', () => {
       /- id: mark\n\s+if: runner\.arch == 'X64' && success\(\)\n\s+run: echo "passed=true"/
     );
     expect(workflow).toContain("if: needs._archgate-self-hosted.outputs.passed != 'true'");
+  });
+
+  it('does not regenerate committed executable ADRs in CI', () => {
+    expect(workflow).not.toContain('archgate init');
   });
 });

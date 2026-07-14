@@ -198,9 +198,12 @@ Archgate:
 
 ```bash
 pnpm run test:unit
-pnpm exec archgate init
 pnpm exec archgate check --ci
 ```
+
+The executable ADRs under [`.archgate/adrs/`](.archgate/adrs/) are committed
+repository policy. `archgate init` is only for bootstrapping a new project; it
+is not part of this repository's validation flow.
 
 Tests use Vitest and live next to source files plus under `tests/`. The coverage
 suite enforces at least 80% for lines, branches, functions, and statements.

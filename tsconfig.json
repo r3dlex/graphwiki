@@ -19,6 +19,6 @@
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true
   },
-  "include": ["src/**/*", "arch/rules/**/*"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "tests", "arch"]
 }
