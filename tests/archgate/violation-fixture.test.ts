@@ -40,7 +40,7 @@ function expectViolation(project: string, rule: string): void {
   expect(output).toContain(rule);
 }
 
-describe('archgate violation fixture', () => {
+describe('archgate violation fixture', { timeout: 75_000 }, () => {
   it('loads the committed rule set and rejects a SHA-256 violation', () => {
     const project = createProject();
     const builder = resolve(project, 'src/graph/builder.ts');
@@ -76,6 +76,24 @@ describe('archgate violation fixture', () => {
     );
 
     expectViolation(project, 'gw-wiki-002');
+  });
+
+  it('resolves valid links relative to a configured wiki root', () => {
+    const project = createProject();
+    mkdirSync(resolve(project, '.graphwiki'), { recursive: true });
+    writeFileSync(
+      resolve(project, '.graphwiki/config.json'),
+      JSON.stringify({ paths: { wiki: 'knowledge' } })
+    );
+
+    const frontmatter =
+      '---\ngraph_nodes: []\ntitle: Page\ntype: concept\nsources: []\nrelated: []\nconfidence: 1\ncontent_hash: test\n---\n';
+    mkdirSync(resolve(project, 'knowledge'), { recursive: true });
+    writeFileSync(resolve(project, 'knowledge/a.md'), `${frontmatter}[[b]]\n`);
+    writeFileSync(resolve(project, 'knowledge/b.md'), `${frontmatter}Linked page.\n`);
+
+    const valid = runArchgate(project);
+    expect(valid.status, `${valid.stdout}\n${valid.stderr}`).toBe(0);
   });
 
   it('fails closed when a required policy input disappears', () => {

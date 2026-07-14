@@ -23,7 +23,7 @@ const requiredFrontmatter = [
   'content_hash',
 ];
 
-async function wikiFiles(ctx: RuleContext): Promise<string[]> {
+async function wikiRoots(ctx: RuleContext): Promise<string[]> {
   const roots = new Set(['graphwiki-out/wiki']);
   try {
     const config = JSON.parse(await ctx.readFile('.graphwiki/config.json')) as {
@@ -36,8 +36,13 @@ async function wikiFiles(ctx: RuleContext): Promise<string[]> {
     // The config is optional; the CLI default remains enforced.
   }
 
+  return [...roots];
+}
+
+async function wikiFiles(ctx: RuleContext, roots?: string[]): Promise<string[]> {
+  const resolvedRoots = roots ?? (await wikiRoots(ctx));
   const files = new Set<string>();
-  for (const root of roots) {
+  for (const root of resolvedRoots) {
     for (const file of await ctx.glob(`${root}/**/*.md`)) files.add(file);
   }
   return [...files];
@@ -119,9 +124,13 @@ export default {
     'gw-wiki-003': {
       description: 'Wiki links resolve to another committed wiki page',
       async check(ctx) {
-        const files = await wikiFiles(ctx);
+        const roots = await wikiRoots(ctx);
+        const files = await wikiFiles(ctx, roots);
         const targets = new Set(
-          files.map((file) => file.replace(/^.*\/wiki\//, '').replace(/\.md$/, ''))
+          files.map((file) => {
+            const root = roots.find((candidate) => file.startsWith(`${candidate}/`));
+            return (root ? file.slice(root.length + 1) : file).replace(/\.md$/, '');
+          })
         );
         for (const file of files) {
           const source = await ctx.readFile(file);
