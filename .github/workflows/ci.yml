@@ -16,6 +16,7 @@ on:
 jobs:
   _archgate-self-hosted:
     name: "archgate check (self-hosted)"
+    if: vars.SELF_HOSTED_CI_ENABLED == 'true'
     runs-on: [self-hosted, ubuntu-latest]
     timeout-minutes: 30
     continue-on-error: true
@@ -39,22 +40,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Verify rule scopes
-        run: |
-          set -e
-          grep "scope: 'src/graph/'" arch/rules/graph.rules.ts
-          grep "scope: 'wiki/'" arch/rules/wiki.rules.ts
-          grep "scope: 'src/serve/'" arch/rules/serve.rules.ts
-          grep "scope: 'src/dedup/'" arch/rules/dedup.rules.ts
-
-      - name: Initialize archgate project
-        run: pnpm exec archgate init
-
       - name: Run archgate check
+        if: runner.arch == 'X64'
         run: pnpm exec archgate check --ci
 
+      - name: Prove archgate rejects a known violation
+        if: runner.arch == 'X64'
+        run: pnpm exec vitest run tests/archgate/violation-fixture.test.ts
+
       - id: mark
-        if: success()
+        if: runner.arch == 'X64' && success()
         run: echo "passed=true" >> "$GITHUB_OUTPUT"
 
   archgate:
@@ -87,25 +82,17 @@ jobs:
         if: needs._archgate-self-hosted.outputs.passed != 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Verify rule scopes
-        if: needs._archgate-self-hosted.outputs.passed != 'true'
-        run: |
-          set -e
-          grep "scope: 'src/graph/'" arch/rules/graph.rules.ts
-          grep "scope: 'wiki/'" arch/rules/wiki.rules.ts
-          grep "scope: 'src/serve/'" arch/rules/serve.rules.ts
-          grep "scope: 'src/dedup/'" arch/rules/dedup.rules.ts
-
-      - name: Initialize archgate project
-        if: needs._archgate-self-hosted.outputs.passed != 'true'
-        run: pnpm exec archgate init
-
       - name: Run archgate check
         if: needs._archgate-self-hosted.outputs.passed != 'true'
         run: pnpm exec archgate check --ci
 
+      - name: Prove archgate rejects a known violation
+        if: needs._archgate-self-hosted.outputs.passed != 'true'
+        run: pnpm exec vitest run tests/archgate/violation-fixture.test.ts
+
   _test-self-hosted:
     name: "Tests (self-hosted)"
+    if: vars.SELF_HOSTED_CI_ENABLED == 'true'
     runs-on: [self-hosted, ubuntu-latest]
     timeout-minutes: 30
     continue-on-error: true
@@ -179,6 +166,7 @@ jobs:
 
   _hook-deployment-self-hosted:
     name: "Hook Deployment Smoke Test (self-hosted)"
+    if: vars.SELF_HOSTED_CI_ENABLED == 'true'
     runs-on: [self-hosted, ubuntu-latest]
     timeout-minutes: 30
     continue-on-error: true

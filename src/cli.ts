@@ -7,7 +7,7 @@ import { Command } from 'commander';
 import { readFile, writeFile, stat } from 'fs/promises';
 import { glob } from 'glob';
 import { resolveIgnoresSplit } from './util/ignore-resolver.js';
-import { join, dirname } from 'path';
+import { join, dirname, relative, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync, writeFileSync, unlinkSync, readFileSync, mkdirSync, readdirSync, appendFileSync } from 'fs';
 import { computeDelta, persistDelta } from './graph/delta.js';
@@ -67,20 +67,38 @@ const DEFAULT_PATHS: GraphWikiPaths = {
   raw: 'raw',
 };
 
-async function loadConfig(): Promise<GraphWikiConfig> {
-  const configPath = '.graphwiki/config.json';
+function resolveConfigPaths(projectRoot: string, paths: GraphWikiPaths): GraphWikiPaths {
+  return {
+    graph: resolve(projectRoot, paths.graph),
+    wiki: resolve(projectRoot, paths.wiki),
+    deltas: resolve(projectRoot, paths.deltas),
+    report: resolve(projectRoot, paths.report),
+    svg: resolve(projectRoot, paths.svg),
+    driftLog: resolve(projectRoot, paths.driftLog),
+    raw: resolve(projectRoot, paths.raw),
+    ...(paths.log ? { log: resolve(projectRoot, paths.log) } : {}),
+  };
+}
+
+async function loadConfig(projectRoot = '.'): Promise<GraphWikiConfig> {
+  const resolvedProjectRoot = resolve(projectRoot);
+  const configPath = join(resolvedProjectRoot, '.graphwiki/config.json');
   try {
     const content = await readFile(configPath, 'utf-8');
     const raw = JSON.parse(content) as Partial<{
       paths: Partial<GraphWikiPaths>;
       wiki: Partial<GraphWikiWiki>;
     }>;
+    const paths = { ...DEFAULT_PATHS, ...(raw.paths ?? {}) };
     return {
-      paths: { ...DEFAULT_PATHS, ...(raw.paths ?? {}) },
+      paths: resolveConfigPaths(resolvedProjectRoot, paths),
       wiki: { ...DEFAULT_WIKI, ...(raw.wiki ?? {}) },
     };
   } catch {
-    return { paths: { ...DEFAULT_PATHS }, wiki: { ...DEFAULT_WIKI } };
+    return {
+      paths: resolveConfigPaths(resolvedProjectRoot, DEFAULT_PATHS),
+      wiki: { ...DEFAULT_WIKI },
+    };
   }
 }
 
@@ -296,12 +314,13 @@ program
   .option('--watch', 'Watch for file changes and rebuild incrementally')
   .action(async (path: string, options) => {
     const startTime = Date.now();
-    const config = await loadConfig();
+    const sourceRoot = resolve(path);
+    const config = await loadConfig(path);
     console.log(`[GraphWiki] Building graph from ${path}`);
     console.log(`[GraphWiki] Options:`, options);
 
-    const graphwikiDir = '.graphwiki';
-    const lockFile = `${graphwikiDir}/.lock`;
+    const graphwikiDir = join(sourceRoot, '.graphwiki');
+    const lockFile = join(graphwikiDir, '.lock');
     const GRAPHWIKI_VERSION = VERSION;
 
     // D1: Lock file management
@@ -397,29 +416,44 @@ program
       // Count source files
       let fileCount = 0;
       const { extractionIgnores, outputIgnores } = await resolveIgnoresSplit(path);
-      const discovered = await glob("**/*", {
+      const wikiRoot = resolve(config.paths.wiki);
+      const isGeneratedWikiPath = (candidate: string): boolean => {
+        const relativePath = relative(wikiRoot, candidate);
+        return relativePath === '' || (
+          relativePath !== '..' &&
+          !relativePath.startsWith('../') &&
+          !relativePath.startsWith('..\\')
+        );
+      };
+      const globExtractionIgnores = extractionIgnores.map((pattern) =>
+        pattern.endsWith('/') ? `${pattern}**` : pattern
+      );
+      const discovered = new Set((await glob("**/*", {
         cwd: path,
-        ignore: extractionIgnores,
+        ignore: globExtractionIgnores,
         absolute: false,
-      });
+        nodir: true,
+      })).filter((file) => !isGeneratedWikiPath(resolve(sourceRoot, file))));
 
       // Also include raw/ input documents if present (configurable via config.paths.raw)
-      const rawDir = join(path, config.paths.raw);
+      const rawDir = config.paths.raw;
       if (existsSync(rawDir)) {
-        const rawFiles = await glob("**/*", {
+        const rawFiles = (await glob("**/*", {
           cwd: rawDir,
-          ignore: extractionIgnores,
+          ignore: globExtractionIgnores,
           absolute: false,
-        });
+          nodir: true,
+        })).filter((file) => !isGeneratedWikiPath(resolve(rawDir, file)));
         // Prefix with raw dir so source_file paths are relative to project root
-        const prefixedRaw = rawFiles.map(f => join(config.paths.raw, f));
-        discovered.push(...prefixedRaw);
+        const prefixedRaw = rawFiles.map((file) => relative(sourceRoot, resolve(rawDir, file)));
+        for (const rawFile of prefixedRaw) discovered.add(rawFile);
         if (rawFiles.length > 0) {
           console.log(`[GraphWiki] Found ${rawFiles.length} files in raw/`);
         }
       }
 
-      fileCount = discovered.length;
+      const discoveredFiles = [...discovered];
+      fileCount = discoveredFiles.length;
 
       console.log(`[GraphWiki] Found ${fileCount} files`);
       console.log(`[GraphWiki] Graph has ${oldGraph.nodes.length} nodes, ${oldGraph.edges.length} edges`);
@@ -431,7 +465,7 @@ program
       // Skip when --wiki-only or --cluster-only (those reuse the existing graph)
       if (!options.wikiOnly && !options.clusterOnly) {
         console.log('[GraphWiki] Extracting graph from source files...');
-        finalGraph = await extractGraph(discovered, path);
+        finalGraph = await extractGraph(discoveredFiles, path);
         console.log(`[GraphWiki] Extraction complete: ${finalGraph.nodes.length} nodes, ${finalGraph.edges.length} edges`);
       }
 
@@ -441,7 +475,7 @@ program
         const pendingDir = join(graphwikiDir, 'pending');
         const promptExts = new Set(['.pdf', '.docx', '.pptx', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
         let promptCount = 0;
-        for (const file of discovered) {
+        for (const file of discoveredFiles) {
           const ext = '.' + (file.split('.').pop()?.toLowerCase() ?? '');
           if (promptExts.has(ext)) {
             await generateExtractionPrompt(join(path, file), pendingDir);
@@ -458,7 +492,7 @@ program
         const { generateExtractionPrompt } = await import('./extract/prompt-generator.js');
         const deepDir = join(graphwikiDir, 'pending', 'deep');
         let deepCount = 0;
-        for (const file of discovered) {
+        for (const file of discoveredFiles) {
           await generateExtractionPrompt(join(path, file), deepDir);
           deepCount++;
         }
@@ -523,7 +557,7 @@ program
         const filesToExtract: string[] = [];
         const newManifest: Record<string, string> = { ...manifest };
 
-        await Promise.all(discovered.map(async (file) => {
+        await Promise.all(discoveredFiles.map(async (file) => {
           try {
             const absPath = join(path, file);
             const content = await readFile(absPath, 'utf-8');

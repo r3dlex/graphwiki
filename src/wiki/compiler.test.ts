@@ -213,7 +213,7 @@ describe('WikiCompiler', () => {
         ],
       };
 
-      const { mkdtempSync, readdirSync } = await import('fs');
+      const { mkdtempSync } = await import('fs');
       const { tmpdir } = await import('os');
       const tmpDir = mkdtempSync(`${tmpdir()}/graphwiki-test-`);
 

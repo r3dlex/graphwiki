@@ -1,420 +1,230 @@
-# GraphWiki v3.0.8
+# GraphWiki
 
-![Banner](assets/banner.png)
+![GraphWiki banner](assets/banner.png)
 
-> **LLM knowledge graph with persistent wiki compilation** — TypeScript, 784 tests (84% line coverage), dual-transport MCP
+GraphWiki is a TypeScript CLI that extracts code and Markdown into a persistent
+knowledge graph, compiles human-readable wiki pages, and exposes graph queries,
+health checks, exports, hooks, and skills.
 
-> **Sister project:** [graphify](https://github.com/safishamsi/graphify) — any input (code, docs, images) → knowledge graph → clustered communities → HTML + JSON
+- **Official repository:** [r3dlex/graphwiki](https://github.com/r3dlex/graphwiki)
+- **npm package and CLI:** [`graphwiki`](https://www.npmjs.com/package/graphwiki)
+- **License:** [MIT](#license)
 
----
+The package name and command are both `graphwiki`. The version printed by
+`graphwiki --version` is the installed package version; it may differ from the
+current repository until a release is published.
 
-## Features
+## Requirements
 
-- **Knowledge Graph** — structures code, docs, and PDFs into a searchable graph
-- **Persistent Wiki** — compiled human-readable pages auto-generated from graph
-- **Dual-Transport MCP** — stdio + HTTP servers for Claude Code integration
-- **Context Loading Protocol** — token-efficient retrieval with tiered loading
-- **AST + Embedding Deduplication** — no redundant LLM calls
-- **/graphwiki Slash Command** — native Claude Code integration via slash command trigger
-- **Audit Trail** — append-only `log.md` timestamped entries for every build, query, and mutation
-- **Karpathy Memory Loop** — `save-result` command with `--question/--answer/--type/--nodes` flags for persistent Q&A patterns
-- **Security Module** — `validateUrl`, `sanitizePath`, `sanitizeLabel` on all user inputs; `validateUrl` wired into `graphwiki add`
-- **80%+ lines / branches / functions / statements** — 784 tests across 66 test files
-
----
-
-## Installation
-
-```bash
-npm install graphwiki
-```
-
-### Requirements
-
-- `node` >= 18
-- `pnpm` >= 9 (or npm/yarn)
-
-### Build from source
-
-```bash
-git clone https://github.com/<user>/graphwiki-skill.git
-cd graphwiki-skill
-pnpm install
-pnpm run build
-```
-
----
+- Node.js 20 or 22. Repository CI exercises both, with the main build and test
+  jobs on Node.js 22.
+- npm for the recommended install. Contributors also need pnpm 9, as pinned in
+  [`package.json`](package.json).
+- No LLM API key for the standard local build. Standard extraction and wiki
+  compilation use local AST and Markdown processing. Optional provider-backed
+  or transcription features have their own credentials.
 
 ## Quick Start
 
+Use the published CLI unless you are contributing to GraphWiki itself:
+
 ```bash
-# Build the knowledge graph and wiki from current directory
-graphwiki build . --update
+npm install -g graphwiki@latest
+graphwiki --version
 
-# Query the knowledge base
-graphwiki query "How does the cache work?"
-
-# Ingest new sources
-graphwiki ingest raw/api.pdf
-
-# Health check
-graphwiki lint
-
-# Stats and drift score
+cd /path/to/your/project
+graphwiki build .
 graphwiki status
 ```
 
----
+A successful first build prints `[GraphWiki] Build complete!`. The follow-up
+`graphwiki status` command reports observable node, edge, community, and density
+values. The current repository source also writes
+`graphwiki-out/GRAPH_REPORT.md` and compiled pages under
+`graphwiki-out/wiki/`; use the installed command's output as the source of truth
+if you are on an older published version.
 
-## /graphwiki Slash Command
+## What GraphWiki Writes
 
-In Claude Code and supported platforms, invoke GraphWiki directly via:
+Run GraphWiki from the root of the project you want to index. A build can create
+or refresh:
 
-```
-/graphwiki
-```
+| Path | Purpose |
+| --- | --- |
+| `.graphwiki/` | Machine state such as configuration, manifests, locks, batches, and pending extraction prompts |
+| `graphwiki-out/graph.json` | The generated graph used by query, path, lint, status, and export commands |
+| `graphwiki-out/GRAPH_REPORT.md` | A compact, human-readable graph summary |
+| `graphwiki-out/wiki/` | Compiled wiki pages and the Obsidian canvas |
+| `.graphwikiignore` | Build exclusions; scaffolded on the first build when missing |
 
-This trigger checks if a graph exists, loads it, and answers your question based on graph nodes and edges. If no graph exists, it offers to build one with `graphwiki build . --update`.
+The exact graph and wiki paths can be overridden in
+`.graphwiki/config.json`; see the [configuration specification](spec/config-schema.md).
+Treat `.graphwiki/` and `graphwiki-out/` as generated state. Review your target
+project's ignore policy before committing them, and commit or back up important
+work before using recovery options that rebuild generated state.
 
----
+## Rerun Semantics
 
-## Build Artifacts
-
-After running `graphwiki build`, the following files are auto-generated in `graphwiki-out/`:
-
-- **`GRAPH_REPORT.md`** — Human-readable summary of graph structure: node counts, edge counts, top communities, and structural statistics (~1-2K tokens). Read this immediately after build without needing to run `status --report` separately.
-- **`log.md`** — Append-only audit trail with timestamped entries for every build, query, ask, add, ingest, and save-result command. Useful for tracking changes and debugging.
-- **`wiki/sources/`** — Per-source summary pages (zero LLM calls) — one page per input file with links and metadata.
-
----
-
-![GraphWiki companion — context loaded, ready to assist](assets/buddy-artist.png)
-
-## Context Loading Protocol
-
-When the PreToolUse hook provides insufficient context, follow this manual protocol:
-
-| Step | Action |
-|------|--------|
-| 1 | Read `graphwiki-out/GRAPH_REPORT.md` (~1-2K tokens) |
-| 2 | Use `graphwiki path <node1> <node2>` for structural queries (0 LLM tokens) |
-| 3 | Read `wiki/index.md` to find relevant pages |
-| 4 | Read targeted wiki pages (~2-5K each, max 3) |
-| 5 | Only read `raw/` files if wiki page missing or low-confidence |
-
----
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `graphwiki build .` | Full graph + wiki build |
-| `graphwiki build . --update` | Incremental rebuild |
-| `graphwiki build . --resume` | Resume interrupted build |
-| `graphwiki build . --watch` | Watch mode with auto-rebuild |
-| `graphwiki build . --directed` | Build directed graphs |
-| `graphwiki build . --mode deep` | Deep mode extraction |
-| `graphwiki query "question"` | Ask the knowledge base |
-| `graphwiki path <nodeA> <nodeB>` | Find shortest path between graph nodes |
-| `graphwiki ingest <file>` | Ingest new source |
-| `graphwiki add <url>` | Add a URL source to the graph (with URL validation) |
-| `graphwiki save-result <file> [--question Q] [--answer A] [--type T] [--nodes N]` | Persist query result to graph for memory loop |
-| `graphwiki lint` | Health check |
-| `graphwiki status` | Stats and drift score |
-| `graphwiki benchmark "question"` | Measure token usage |
-| `graphwiki refine` | Auto-improve extraction prompts |
-| `graphwiki refine --review` | Show suggestions without applying |
-| `graphwiki refine --rollback` | Revert to previous prompts |
-| `graphwiki hook install` | Install hooks for Claude Code integration |
-| `graphwiki hook uninstall` | Uninstall hooks |
-| `graphwiki hook status` | Check hook installation status |
-| `graphwiki skill install [--platform <name>]` | Install skill for current platform |
-| `graphwiki skill generate [--check]` | Generate platform-specific skill files |
-| `graphwiki skill uninstall --all` | Remove all skill installations |
-| `graphwiki lint --spec-drift` | Check exported functions against spec/ |
-| `graphwiki build . --neo4j-verify` | Verify Neo4j push matches graph counts |
-
----
-
-![GraphWiki companion — building your knowledge graph one node at a time](assets/buddy-scholar.png)
-
-## Build & Ingest
+Update the installed CLI and verify the active version with:
 
 ```bash
-# Full rebuild from current directory
+npm install -g graphwiki@latest
+graphwiki --version
+```
+
+The install command is safe to rerun. After updating, rebuild each indexed
+project from its current sources:
+
+```bash
 graphwiki build .
-
-# Incremental rebuild (only changed files)
-graphwiki build . --update
-
-# Resume interrupted build
-graphwiki build . --resume
-
-# Process a new source file
-graphwiki ingest raw/api.pdf
-graphwiki ingest raw/docs/architecture.md
+graphwiki status
 ```
 
-### Benchmark Results
+- `graphwiki build .` rebuilds graph and wiki output from the current source
+  files.
+- A live build lock prevents concurrent builds in the same project. Stale or
+  corrupt lock files are removed automatically by the CLI.
+- `raw/` is an input location. GraphWiki reads it when present; do not treat it
+  as generated output.
 
-GraphWiki measures token usage per query. The `graphwiki benchmark` command reports cumulative and per-call token counts:
+## Common Workflows
+
+### Query and navigate
 
 ```bash
-graphwiki benchmark "How does authentication work?"
+graphwiki query "How does the cache work?"
+graphwiki path <nodeA> <nodeB>
+graphwiki status
+graphwiki lint
 ```
 
-**Typical token savings (estimated):**
-
-| Query Type | Without GraphWiki | With GraphWiki | Savings |
-|------------|------------------|----------------|---------|
-| Structural lookup (`graphwiki path`) | ~8,000 tokens | 0 tokens | **100%** |
-| Direct wiki read | ~12,000 tokens | ~3,000 tokens | **75%** |
-| Raw file search | ~15,000 tokens | ~2,500 tokens | **83%** |
-
-The deduplication system (AST + embedding similarity) ensures each source file is extracted once. Subsequent queries reference cached graph nodes rather than re-reading raw sources.
-
----
-
-## Karpathy Memory Loop
-
-GraphWiki supports persistent Q&A memory via the `save-result` command, enabling Andrej Karpathy's memory loop pattern:
+### Ingest additional content
 
 ```bash
-# Ask a question and save the answer back to the graph
-graphwiki save-result result.json \
-  --question "How does authentication work?" \
-  --answer "Authentication follows OAuth2 flow with JWT tokens..." \
-  --type "pattern" \
-  --nodes "auth,oauth,jwt"
+graphwiki ingest notes.md
+graphwiki add https://example.com/reference
 ```
 
-This writes Q&A pages to:
-- `graphwiki-out/memory/` — timestamped Q&A entries
-- `graphwiki-out/wiki/queries/` — indexed and searchable query results
+Direct file ingestion reads UTF-8 text, so do not pass a binary PDF to
+`graphwiki ingest`. To generate an extraction prompt for a PDF, place it under
+`raw/` and run `graphwiki build .`; build-time discovery writes the prompt under
+`.graphwiki/pending/`. URL ingestion validates the URL before fetching it.
 
-Subsequent builds incorporate these results into the graph, creating a self-improving knowledge base that learns from every query.
+### Install an agent skill or hook
 
----
-
-## Skill System Architecture
-
-GraphWiki uses a canonical skill pipeline where [SKILL.md](SKILL.md) is the single source of truth parsed by `skill-generator.ts` to generate platform-specific skill files:
-
-```
-SKILL.md  →  skill-generator.ts  →  SKILL-claude.md
-                                    SKILL-codex.md
-                                    SKILL-copilot.md
-                                    SKILL-auggie.md
-                                    SKILL-gemini.md
-                                    SKILL-cursor.md
-                                    SKILL-openclaw.md
-                                    SKILL-windsurf.md
-                                    SKILL-cody.md
-                                    SKILL-codewhisperer.md
+```bash
+graphwiki skill install --platform codex
+graphwiki hook install
+graphwiki hook status
 ```
 
-- **SKILL.md** is the canonical source with YAML frontmatter and markdown sections
-- **skill-generator.ts** parses SKILL.md via `parseFrontmatter` and `parseSections`, then generates platform-specific output
-- All SKILL-*.md files are generated — do not edit them directly
+Platform installation changes user or project tool configuration. Review the
+[platform installation guide](references/platform-install.md) before running it,
+especially in an existing customized setup. Generated `SKILL-*.md` files come
+from [`SKILL.md`](SKILL.md); edit the canonical file rather than generated copies.
 
-For full skill documentation, see [SKILL.md](SKILL.md).
+### Export the graph
 
----
-
-## Ignore Files
-
-GraphWiki respects two ignore files that supplement `.graphwiki/config.json`:
-
-### `.graphwikiignore`
-
-User-level per-project ignores for `graphwiki build`. Place in the project root (committed to git). Supports glob patterns:
-
-```
-# OMC/OMA state directories
-.omc/
-.omp/
-.oma/
-
-# GraphWiki internal config
-.graphwiki/
-
-# Build artifacts
-node_modules/
-dist/
-graphwiki-out/
-.wiki/
-*.lock
-.DS_Store
+```bash
+graphwiki export html --output graphwiki-out/exports
 ```
 
-### `.graphifyignore`
+Neo4j export and verification require the corresponding URI and credentials;
+see the [command reference](references/commands.md).
 
-Output ignore for final graph nodes. Patterns here exclude nodes from the compiled graph even if they pass all other filters:
+## Troubleshooting
 
-```
-graphwiki-out/
-.wiki/
-dist/
-.cache/
-*.graph.json
-*.graphml
-```
+### `graphwiki: command not found`
 
-### Resolution Order
+Confirm the npm global binary directory is on `PATH`, or verify the published
+package without a global install:
 
-All ignore patterns are additive:
-1. `.graphwiki/config.json` → `ignore_patterns` (authoritative)
-2. `.graphwikiignore` → user build ignores
-3. `.graphifyignore` → graph output ignores
-
----
-
-## Security
-
-GraphWiki includes a security module (`src/util/security.ts`) with the following validations:
-
-- **`validateUrl(url)`** — Validates and sanitizes URLs before adding them via `graphwiki add`. Rejects invalid, malicious, or inaccessible URLs.
-- **`sanitizePath(path)`** — Escapes path separators and prevents directory traversal attacks.
-- **`sanitizeLabel(label)`** — Sanitizes node labels to prevent injection attacks in graph exports (GraphML, Neo4j).
-- **`escapeCypher(value)`** — Escapes values for Neo4j Cypher queries.
-
-All user-provided input (URLs, file paths, node labels) is validated automatically. No additional configuration needed.
-
----
-
-## Platform Installation
-
-Install GraphWiki for your platform (17 supported):
-
-| Platform | Command |
-|----------|---------|
-| Claude | `graphwiki skill install --platform claude` |
-| Codex | `graphwiki skill install --platform codex` |
-| Gemini | `graphwiki skill install --platform gemini` |
-| Cursor | `graphwiki skill install --platform cursor` |
-| OpenClaw | `graphwiki skill install --platform openclaw` |
-| OpenCode | `graphwiki skill install --platform opencode` |
-| Aider | `graphwiki skill install --platform aider` |
-| Droid | `graphwiki skill install --platform droid` |
-| Trae | `graphwiki skill install --platform trae` |
-| Trae-CN | `graphwiki skill install --platform trae-cn` |
-| GitHub Copilot | Copy `SKILL-copilot.md` to `.github/copilot/` |
-| Auggie | `graphwiki skill install --platform auggie` |
-| Windsurf | `graphwiki skill install --platform windsurf` |
-| Cody | `graphwiki skill install --platform cody` |
-| CodeWhisperer | `graphwiki skill install --platform codewhisperer` |
-| Antigravity | `graphwiki skill install --platform antigravity` |
-| Hermes | `graphwiki skill install --platform hermes` |
-
-For full skill documentation, see [SKILL.md](SKILL.md).
-
----
-
-## Configurable Paths
-
-GraphWiki uses `.graphwiki/config.json` to specify paths:
-
-```json
-{
-  "paths": {
-    "raw": "raw/",
-    "graphwiki_out": "graphwiki-out/",
-    "wiki": "wiki/",
-    "ignore_patterns": [".omc/", ".oma/", "node_modules/", "dist/"]
-  }
-}
+```bash
+npm exec --yes --package=graphwiki@latest -- graphwiki --version
 ```
 
-- **raw** — source directory (immutable)
-- **graphwiki_out** — graph output directory (auto-generated)
-- **wiki** — compiled wiki pages (auto-generated)
-- **ignore_patterns** — glob patterns to exclude from build
+Then reinstall with `npm install -g graphwiki@latest`.
 
----
+### `Build already in progress`
+
+Do not start two builds in the same project. Wait for the reported process to
+finish, then rerun `graphwiki build .`. The CLI removes stale locks when their
+process is no longer running.
+
+### Status is empty or the graph looks stale
+
+Make sure you are in the intended project root, inspect `.graphwikiignore` and
+`.graphifyignore`, then run:
+
+```bash
+graphwiki build .
+graphwiki status
+```
+
+Use `--force` only after checking those exclusions and preserving any generated
+state you need.
+
+### A command or platform option is unclear
+
+Start with the CLI's installed help, which matches the active version:
+
+```bash
+graphwiki --help
+graphwiki build --help
+graphwiki skill --help
+```
+
+Then consult the [command reference](references/commands.md),
+[context protocol](references/context-protocol.md),
+[hook integration guide](references/hook-integration.md), and
+[platform installation guide](references/platform-install.md).
 
 ## Development
 
+Clone the canonical repository and use its pinned package manager:
+
 ```bash
-# Install dependencies
-pnpm install
-
-# Build
+git clone https://github.com/r3dlex/graphwiki.git
+cd graphwiki
+pnpm install --frozen-lockfile
 pnpm run build
-
-# Type check
 pnpm run typecheck
-
-# Lint
 pnpm run lint
-
-# Format
-pnpm run fmt
-
-# Run all tests
 pnpm test
+```
 
-# Unit tests with coverage
+Additional repository gates include the coverage-threshold unit suite and
+Archgate:
+
+```bash
 pnpm run test:unit
-
-# Watch mode
-pnpm run test:watch
+pnpm exec archgate check --ci
 ```
 
----
+The executable ADRs under [`.archgate/adrs/`](.archgate/adrs/) are committed
+repository policy. `archgate init` is only for bootstrapping a new project; it
+is not part of this repository's validation flow.
 
-## Test Coverage
+Tests use Vitest and live next to source files plus under `tests/`. The coverage
+suite enforces at least 80% for lines, branches, functions, and statements.
+Contributors should read [`AGENTS.md`](AGENTS.md) and
+[`CONTRIBUTING.md`](CONTRIBUTING.md) before changing source.
 
-| Area | Files |
-|------|-------|
-| `benchmark/` | baseline-runner, token-counter, report-generator |
-| `detect/` | detector |
-| `dedup/` | embedding, deduplicator |
-| `extract/` | extraction-cache, batch-coordinator, rate-dispatcher, schema-validator, ast-extractor, llm-extractor |
-| `graph/` | builder, cluster, drift, traversal, delta |
-| `providers/` | provider, anthropic, openai, google |
-| `query/` | router, cache |
-| `refine/` | tracer, diagnostician, reviser, ratchet, history |
-| `report/` | reporter, community-summary |
-| `serve/` | mcp-stdio, mcp-http |
-| `util/` | hash, frontmatter, token-estimator |
-| `wiki/` | compiler, index-generator, wiki-graph-map, linter, updater |
+## Documentation
 
-**66 test files — 784 tests — all passing**
-
----
-
-## Architecture
-
-```
-graphwiki-skill/
-├── src/
-│   ├── benchmark/       # Token measurement and reporting
-│   ├── detect/          # Language/directory detection
-│   ├── dedup/           # Embedding + AST deduplication
-│   ├── export/          # GraphML, HTML, Neo4j, Obsidian canvas
-│   ├── extract/         # LLM extraction, caching, batching, deep mode
-│   ├── graph/           # Graph builder, cluster, traversal, drift
-│   ├── hooks/           # PreToolUse, git-hooks, skill installer
-│   ├── providers/       # Anthropic, OpenAI, Google AI
-│   ├── query/           # Router + cache
-│   ├── refine/          # Reviser, ratchet, tracer, diagnostician
-│   ├── report/          # Community summary, reporter
-│   ├── serve/           # MCP stdio + HTTP servers
-│   ├── util/            # Frontmatter, hash, token estimation, ignore-resolver
-│   ├── watch/           # File watcher with debounce
-│   └── wiki/            # Compiler, index, linter, wiki-graph map
-├── spec/                # Module specs (17 spec files)
-├── references/          # Supplementary docs for SKILL.md
-├── graphwiki-out/       # Built knowledge graph
-├── wiki/                # Compiled wiki pages
-└── raw/                 # Source files (immutable)
-```
-
----
+- [CLI commands](references/commands.md)
+- [Configuration schema](spec/config-schema.md)
+- [Context loading protocol](references/context-protocol.md)
+- [Hook integration](references/hook-integration.md)
+- [Platform installation](references/platform-install.md)
+- [Architecture decisions](docs/adr/)
+- [Module specifications](spec/)
+- [Security policy](SECURITY.md)
+- [Changelog](CHANGELOG.md)
 
 ## License
 
-MIT
+GraphWiki is licensed under MIT, as declared in [`package.json`](package.json).
 
 <!-- v3-ai-sdlc-init:start -->
 ## AI SDLC v3
